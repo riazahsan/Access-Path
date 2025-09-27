@@ -1,4 +1,4 @@
-# Wheelchair Campus Navigator (Hackathon Prototype)
+# Acess Path
 
 **Project Goal:**  
 Provide a simple, accessible navigation tool for wheelchair users on campus, with real-time AR guidance and notifications for blocked paths.
@@ -31,7 +31,12 @@ Provide a simple, accessible navigation tool for wheelchair users on campus, wit
 - **Frontend:** React + Mapbox GL JS / Leaflet (map visualization)  
 - **AR/Navigation:** Web camera feed + JavaScript compass/orientation API  
 - **Backend (optional for demo):** Node.js / Firebase (for simulated real-time updates)  
-- **Data:** Hardcoded routes for hackathon demo (can later integrate ArcGIS GeoJSON)
+- **Data:** 
+  - Primary source: Campus Accessibility Map (ArcGIS) showing all wheelchair-accessible paths.  
+  - Used as the main layer for route visualization and navigation.  
+  - For demo purposes, a subset of key routes is hardcoded to enable quick routing and AR prototype.  
+  - Full GeoJSON integration from ArcGIS can be added later for complete campus coverage.
+
 
 ---
 
@@ -41,3 +46,7 @@ Provide a simple, accessible navigation tool for wheelchair users on campus, wit
    ```bash
    git clone https://github.com/<your-org>/wheelchair-campus-navigator.git
    cd wheelchair-campus-navigator
+2. Install dependencies:
+   npm install
+3. Start the app:
+   npm start
