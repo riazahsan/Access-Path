@@ -22,134 +22,166 @@ const MapView: React.FC<MapViewProps> = ({
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
-  const [mapboxToken, setMapboxToken] = useState<string>('pk.eyJ1IjoicmlhemExNjIiLCJhIjoiY21nMmhkeG05MDdtcDJycG95aDNkNGRrayJ9.okIiL_beCCP6u1W6kdX02w');
-  const [tokenError, setTokenError] = useState<boolean>(false);
+  
+  // Use your actual token from the HTML file
+  const [mapboxToken] = useState<string>("pk.eyJ1Ijoic2FtaXJraGF0dGFrIiwiYSI6ImNtZzJoZHNhNzB5czEyanEyY2RmbXdtM3kifQ.2xIoUu6wrMN5ALJbue0cEg");
+  const [isMapLoaded, setIsMapLoaded] = useState<boolean>(false);
 
   useEffect(() => {
     if (!mapContainer.current || !mapboxToken) return;
 
     try {
-      // Initialize map with token
+      // Initialize map with your custom style
       mapboxgl.accessToken = mapboxToken;
       
       map.current = new mapboxgl.Map({
         container: mapContainer.current,
-        style: 'mapbox://styles/mapbox/streets-v12',
-        center: [-80.4201, 37.2296], // Virginia Tech coordinates
-        zoom: 16,
+        style: "mapbox://styles/samirkhattak/cmg2ldrpo000o01s14dc45qyz?fresh=true",
+        center: [-80.416748046875, 37.229217529296875],
+        zoom: 14,
         pitch: 0,
         bearing: 0
       });
 
       // Add navigation controls
+      map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
+      
+      // Add geolocation control
       map.current.addControl(
-        new mapboxgl.NavigationControl({
-          visualizePitch: true,
+        new mapboxgl.GeolocateControl({
+          positionOptions: { enableHighAccuracy: true },
+          trackUserLocation: true,
+          showUserHeading: true,
         }),
         'top-right'
       );
 
       map.current.on('load', () => {
         if (!map.current) return;
-
-        // Add route source
-        map.current.addSource('routes', {
-          type: 'geojson',
-          data: routes
+        
+        console.log("Map loaded with published style!");
+        setIsMapLoaded(true);
+        
+        const style = map.current.getStyle();
+        console.log("Total sources:", Object.keys(style.sources).length);
+        console.log("Total layers:", style.layers.length);
+        
+        // List all layers for debugging
+        console.log("All layers:");
+        style.layers.forEach(layer => {
+          console.log("  - " + layer.id + " (type: " + layer.type + ")");
         });
 
-        // Add accessible routes layer
-        map.current.addLayer({
-          id: 'accessible-routes',
-          type: 'line',
-          source: 'routes',
-          filter: ['==', ['get', 'accessibility'], 'accessible'],
-          paint: {
-            'line-color': 'hsl(159, 84%, 35%)', // Success green
-            'line-width': [
-              'case',
-              ['==', ['get', 'id'], selectedRoute || ''],
-              6, // Wider for selected route
-              4
-            ],
-            'line-opacity': 0.8
-          }
+        // Find accessibility layers
+        const accessibilityLayers = style.layers.filter(layer => {
+          const id = layer.id.toLowerCase();
+          return id.includes('access') || 
+                 id.includes('curb') || 
+                 id.includes('parking') || 
+                 id.includes('entrance') || 
+                 id.includes('elevator') ||
+                 id.includes('ada');
         });
 
-        // Add partial accessibility routes layer
-        map.current.addLayer({
-          id: 'partial-routes',
-          type: 'line',
-          source: 'routes',
-          filter: ['==', ['get', 'accessibility'], 'partial'],
-          paint: {
-            'line-color': 'hsl(45, 93%, 47%)', // Warning orange
-            'line-width': [
-              'case',
-              ['==', ['get', 'id'], selectedRoute || ''],
-              6,
-              4
-            ],
-            'line-opacity': 0.8,
-            'line-dasharray': [2, 2] // Dashed for partial accessibility
-          }
+        console.log("Found accessibility layers:", accessibilityLayers.length);
+        accessibilityLayers.forEach(layer => {
+          console.log("  -> " + layer.id);
         });
 
-        // Add building markers (placeholder for future implementation)
-        routes.features.forEach((feature) => {
-          const coords = feature.geometry.coordinates[0];
-          
-          // Create custom marker
-          const marker = new mapboxgl.Marker({
-            color: 'hsl(159, 84%, 35%)',
-            scale: 0.8
-          })
-            .setLngLat(coords as [number, number])
-            .setPopup(
-              new mapboxgl.Popup({ offset: 25 })
-                .setHTML(`
-                  <div class="p-2">
-                    <h3 class="font-semibold text-sm">${feature.properties.name}</h3>
-                    <p class="text-xs text-muted-foreground">
-                      ${feature.properties.estimatedTime} min walk
-                    </p>
-                    <p class="text-xs">
-                      Accessibility: <span class="font-medium">${feature.properties.accessibility}</span>
-                    </p>
-                  </div>
-                `)
-            )
-            .addTo(map.current!);
-        });
+        // Add demo routes if available
+        if (routes && routes.features && routes.features.length > 0) {
+          // Add route source
+          map.current.addSource('demo-routes', {
+            type: 'geojson',
+            data: routes
+          });
 
-        // Add click handlers for route selection
-        map.current.on('click', 'accessible-routes', (e) => {
-          if (e.features && e.features[0] && onRouteSelect) {
-            const routeId = e.features[0].properties?.id;
-            if (routeId) onRouteSelect(routeId);
-          }
-        });
+          // Add accessible routes layer
+          map.current.addLayer({
+            id: 'demo-accessible-routes',
+            type: 'line',
+            source: 'demo-routes',
+            filter: ['==', ['get', 'accessibility'], 'accessible'],
+            paint: {
+              'line-color': '#22c55e',
+              'line-width': [
+                'case',
+                ['==', ['get', 'id'], selectedRoute || ''],
+                6,
+                4
+              ],
+              'line-opacity': 0.8
+            }
+          });
 
-        map.current.on('click', 'partial-routes', (e) => {
-          if (e.features && e.features[0] && onRouteSelect) {
-            const routeId = e.features[0].properties?.id;
-            if (routeId) onRouteSelect(routeId);
-          }
-        });
+          // Add partial accessibility routes layer
+          map.current.addLayer({
+            id: 'demo-partial-routes',
+            type: 'line',
+            source: 'demo-routes',
+            filter: ['==', ['get', 'accessibility'], 'partial'],
+            paint: {
+              'line-color': '#f59e0b',
+              'line-width': [
+                'case',
+                ['==', ['get', 'id'], selectedRoute || ''],
+                6,
+                4
+              ],
+              'line-opacity': 0.8,
+              'line-dasharray': [2, 2]
+            }
+          });
 
-        // Change cursor on hover
-        map.current.on('mouseenter', 'accessible-routes', () => {
-          if (map.current) map.current.getCanvas().style.cursor = 'pointer';
-        });
-        map.current.on('mouseleave', 'accessible-routes', () => {
-          if (map.current) map.current.getCanvas().style.cursor = '';
-        });
+          // Add route markers
+          routes.features.forEach((feature) => {
+            const coords = feature.geometry.coordinates[0];
+            
+            const marker = new mapboxgl.Marker({
+              color: '#22c55e',
+              scale: 0.8
+            })
+              .setLngLat(coords as [number, number])
+              .setPopup(
+                new mapboxgl.Popup({ offset: 25 })
+                  .setHTML(`
+                    <div style="padding: 8px;">
+                      <h3 style="margin: 0 0 5px 0; font-size: 14px; font-weight: 600;">${feature.properties.name}</h3>
+                      <p style="margin: 0; font-size: 12px; color: #666;">
+                        ${feature.properties.estimatedTime} min walk
+                      </p>
+                      <p style="margin: 5px 0 0 0; font-size: 12px;">
+                        Accessibility: <span style="font-weight: 500;">${feature.properties.accessibility}</span>
+                      </p>
+                    </div>
+                  `)
+              )
+              .addTo(map.current!);
+          });
+
+          // Add click handlers for demo routes
+          map.current.on('click', 'demo-accessible-routes', (e) => {
+            if (e.features && e.features[0] && onRouteSelect) {
+              const routeId = e.features[0].properties?.id;
+              if (routeId) onRouteSelect(routeId);
+            }
+          });
+
+          map.current.on('click', 'demo-partial-routes', (e) => {
+            if (e.features && e.features[0] && onRouteSelect) {
+              const routeId = e.features[0].properties?.id;
+              if (routeId) onRouteSelect(routeId);
+            }
+          });
+        }
       });
 
-      setTokenError(false);
+      map.current.on('error', (e) => {
+        console.error('Mapbox error:', e);
+      });
+
     } catch (error) {
       console.error('Mapbox initialization error:', error);
-      setTokenError(true);
     }
 
     // Cleanup
@@ -158,72 +190,50 @@ const MapView: React.FC<MapViewProps> = ({
     };
   }, [mapboxToken, routes, selectedRoute, onRouteSelect]);
 
-  // Update route visibility based on filters
+  // Update layer visibility based on filters
   useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
+    if (!map.current || !isMapLoaded) return;
 
-    const accessibleVisible = filters.showAccessible;
-    const partialVisible = filters.showPartial;
+    // Toggle demo routes based on filters
+    if (map.current.getLayer('demo-accessible-routes')) {
+      map.current.setLayoutProperty(
+        'demo-accessible-routes',
+        'visibility',
+        filters.showAccessible ? 'visible' : 'none'
+      );
+    }
 
-    map.current.setLayoutProperty(
-      'accessible-routes',
-      'visibility',
-      accessibleVisible ? 'visible' : 'none'
-    );
+    if (map.current.getLayer('demo-partial-routes')) {
+      map.current.setLayoutProperty(
+        'demo-partial-routes', 
+        'visibility',
+        filters.showPartial ? 'visible' : 'none'
+      );
+    }
 
-    map.current.setLayoutProperty(
-      'partial-routes', 
-      'visibility',
-      partialVisible ? 'visible' : 'none'
-    );
-  }, [filters]);
+    // TODO: Toggle actual Mapbox Studio layers based on filters
+    // Update these layer IDs based on your actual Mapbox Studio layer names
+    const layerMappings = {
+      showAccessible: ['Accessibility Routes', 'Accessible Entrances'],
+      showCurbCuts: ['Curb Cuts'],
+      showParking: ['ADA Parking Spots'],
+      showElevators: ['Elevators']
+    };
 
-  if (!mapboxToken) {
-    return (
-      <div className="relative w-full h-screen bg-accent flex items-center justify-center">
-        <Card className="p-6 max-w-md mx-4 shadow-accessible">
-          <div className="space-y-4">
-            <div className="text-center">
-              <h3 className="text-lg font-semibold text-primary">Mapbox Token Required</h3>
-              <p className="text-sm text-muted-foreground mt-2">
-                Enter your Mapbox public token to view the campus map
-              </p>
-            </div>
-            
-            {tokenError && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  Invalid token. Please check your Mapbox public token.
-                </AlertDescription>
-              </Alert>
-            )}
-            
-            <div className="space-y-2">
-              <Input
-                type="text"
-                placeholder="pk.eyJ1IjoieW91ci11c2VybmFtZSIsImEiOiJjbH..."
-                value={mapboxToken}
-                onChange={(e) => setMapboxToken(e.target.value)}
-                className="font-mono text-xs"
-              />
-              <p className="text-xs text-muted-foreground">
-                Get your token from{' '}
-                <a 
-                  href="https://mapbox.com/" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  mapbox.com
-                </a>
-              </p>
-            </div>
-          </div>
-        </Card>
-      </div>
-    );
-  }
+    Object.entries(layerMappings).forEach(([filterKey, layerIds]) => {
+      const isVisible = filters[filterKey as keyof AccessibilityFilter];
+      layerIds.forEach(layerId => {
+        if (map.current?.getLayer(layerId)) {
+          map.current.setLayoutProperty(
+            layerId,
+            'visibility',
+            isVisible ? 'visible' : 'none'
+          );
+        }
+      });
+    });
+
+  }, [filters, isMapLoaded]);
 
   return (
     <div className="relative w-full h-screen">
@@ -234,6 +244,15 @@ const MapView: React.FC<MapViewProps> = ({
         <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-background/20 to-transparent" />
         <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-background/20 to-transparent" />
       </div>
+
+      {/* Loading indicator */}
+      {!isMapLoaded && (
+        <div className="absolute inset-0 bg-background/50 flex items-center justify-center">
+          <Card className="p-4">
+            <p className="text-sm text-muted-foreground">Loading map...</p>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };
