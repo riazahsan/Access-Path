@@ -37,7 +37,7 @@ const MapView: React.FC<MapViewProps> = ({
       map.current = new mapboxgl.Map({
         container: mapContainer.current,
         style: "mapbox://styles/samirkhattak/cmg2ldrpo000o01s14dc45qyz?fresh=true",
-        center: [-80.416748046875, 37.229217529296875],
+        center: [-80.423710, 37.225825],
         zoom: 14,
         pitch: 0,
         bearing: 0
@@ -61,7 +61,13 @@ const MapView: React.FC<MapViewProps> = ({
         
         console.log("Map loaded with published style!");
         setIsMapLoaded(true);
-        
+
+        const bounds: mapboxgl.LngLatBoundsLike = [
+          [-80.437, 37.210],
+          [-80.398, 37.250]
+        ];
+        map.current.setMaxBounds(bounds);
+
         const style = map.current.getStyle();
         console.log("Total sources:", Object.keys(style.sources).length);
         console.log("Total layers:", style.layers.length);
