@@ -42,13 +42,16 @@ Provide a simple, accessible navigation tool for wheelchair users on campus, wit
 
 ## 🛠 Setup & Run
 
-1. Clone the repository:  
-   ```bash
-   git clone https://github.com/<your-org>/wheelchair-campus-navigator.git
-   cd wheelchair-campus-navigator
-2. Install dependencies:
-   ```bash
-   npm install
-4. Start the app:
-   ```bash
-   npm start
+```sh
+# Step 1: Clone the repository using the project's Git URL.
+git clone <YOUR_GIT_URL>
+
+# Step 2: Navigate to the project directory.
+cd <YOUR_PROJECT_NAME>
+
+# Step 3: Install the necessary dependencies.
+npm i
+
+# Step 4: Start the development server with auto-reloading and an instant preview.
+npm run dev
+```
