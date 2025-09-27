@@ -3,9 +3,7 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { RouteCollection, AccessibilityFilter } from '@/types';
 import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
+import { getRoute } from '@/components/mapboxRoutes';
 
 interface MapViewProps {
   routes: RouteCollection;
@@ -23,30 +21,31 @@ const MapView: React.FC<MapViewProps> = ({
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   
-  // Use your actual token from the HTML file
-  const [mapboxToken] = useState<string>("pk.eyJ1Ijoic2FtaXJraGF0dGFrIiwiYSI6ImNtZzJoZHNhNzB5czEyanEyY2RmbXdtM3kifQ.2xIoUu6wrMN5ALJbue0cEg");
+  const [mapboxToken] = useState<string>(
+    "pk.eyJ1Ijoic2FtaXJraGF0dGFrIiwiYSI6ImNtZzJoZHNhNzB5czEyanEyY2RmbXdtM3kifQ.2xIoUu6wrMN5ALJbue0cEg"
+  );
   const [isMapLoaded, setIsMapLoaded] = useState<boolean>(false);
+
+  // Constant starting point
+  const start: [number, number] = [-80.423710, 37.225825];
 
   useEffect(() => {
     if (!mapContainer.current || !mapboxToken) return;
 
     try {
-      // Initialize map with your custom style
       mapboxgl.accessToken = mapboxToken;
-      
+
       map.current = new mapboxgl.Map({
         container: mapContainer.current,
         style: "mapbox://styles/samirkhattak/cmg2ldrpo000o01s14dc45qyz?fresh=true",
-        center: [-80.423710, 37.225825],
+        center: start,
         zoom: 14,
         pitch: 0,
         bearing: 0
       });
 
-      // Add navigation controls
+      // Controls
       map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
-      
-      // Add geolocation control
       map.current.addControl(
         new mapboxgl.GeolocateControl({
           positionOptions: { enableHighAccuracy: true },
@@ -58,51 +57,73 @@ const MapView: React.FC<MapViewProps> = ({
 
       map.current.on('load', () => {
         if (!map.current) return;
-        
-        console.log("Map loaded with published style!");
+
         setIsMapLoaded(true);
 
+        // Max bounds
         const bounds: mapboxgl.LngLatBoundsLike = [
           [-80.437, 37.210],
           [-80.398, 37.250]
         ];
         map.current.setMaxBounds(bounds);
 
-        const style = map.current.getStyle();
-        console.log("Total sources:", Object.keys(style.sources).length);
-        console.log("Total layers:", style.layers.length);
-        
-        // List all layers for debugging
-        console.log("All layers:");
-        style.layers.forEach(layer => {
-          console.log("  - " + layer.id + " (type: " + layer.type + ")");
+        // --- Origin Circle (constant) ---
+        map.current.addSource("origin-circle", {
+          type: "geojson",
+          data: {
+            type: "FeatureCollection",
+            features: [
+              {
+                type: "Feature",
+                properties: {},
+                geometry: { type: "Point", coordinates: start },
+              },
+            ],
+          },
         });
 
-        // Find accessibility layers
-        const accessibilityLayers = style.layers.filter(layer => {
-          const id = layer.id.toLowerCase();
-          return id.includes('access') || 
-                 id.includes('curb') || 
-                 id.includes('parking') || 
-                 id.includes('entrance') || 
-                 id.includes('elevator') ||
-                 id.includes('ada');
+        map.current.addLayer({
+          id: "origin-circle",
+          type: "circle",
+          source: "origin-circle",
+          paint: { "circle-radius": 10, "circle-color": "#4ce05b" },
         });
 
-        console.log("Found accessibility layers:", accessibilityLayers.length);
-        accessibilityLayers.forEach(layer => {
-          console.log("  -> " + layer.id);
+        // --- Destination Circle (initially empty) ---
+        map.current.addSource("destination-circle", {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
         });
 
-        // Add demo routes if available
-        if (routes && routes.features && routes.features.length > 0) {
-          // Add route source
-          map.current.addSource('demo-routes', {
-            type: 'geojson',
-            data: routes
-          });
+        map.current.addLayer({
+          id: "destination-circle",
+          type: "circle",
+          source: "destination-circle",
+          paint: { "circle-radius": 10, "circle-color": "#f30" },
+        });
 
-          // Add accessible routes layer
+        // --- Map click handler to set destination and route ---
+        map.current.on("click", (event) => {
+          const coords: [number, number] = [event.lngLat.lng, event.lngLat.lat];
+
+          const endGeoJSON: GeoJSON.FeatureCollection<GeoJSON.Point> = {
+            type: "FeatureCollection",
+            features: [
+              { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: coords } },
+            ],
+          };
+
+          // Update destination circle
+          (map.current!.getSource("destination-circle") as mapboxgl.GeoJSONSource).setData(endGeoJSON);
+
+          // Fetch and draw route
+          getRoute(map.current!, start, coords);
+        });
+
+        // --- Demo Routes ---
+        if (routes?.features?.length > 0) {
+          map.current.addSource('demo-routes', { type: 'geojson', data: routes });
+
           map.current.addLayer({
             id: 'demo-accessible-routes',
             type: 'line',
@@ -110,17 +131,11 @@ const MapView: React.FC<MapViewProps> = ({
             filter: ['==', ['get', 'accessibility'], 'accessible'],
             paint: {
               'line-color': '#22c55e',
-              'line-width': [
-                'case',
-                ['==', ['get', 'id'], selectedRoute || ''],
-                6,
-                4
-              ],
+              'line-width': ['case', ['==', ['get', 'id'], selectedRoute || ''], 6, 4],
               'line-opacity': 0.8
             }
           });
 
-          // Add partial accessibility routes layer
           map.current.addLayer({
             id: 'demo-partial-routes',
             type: 'line',
@@ -128,98 +143,66 @@ const MapView: React.FC<MapViewProps> = ({
             filter: ['==', ['get', 'accessibility'], 'partial'],
             paint: {
               'line-color': '#f59e0b',
-              'line-width': [
-                'case',
-                ['==', ['get', 'id'], selectedRoute || ''],
-                6,
-                4
-              ],
+              'line-width': ['case', ['==', ['get', 'id'], selectedRoute || ''], 6, 4],
               'line-opacity': 0.8,
               'line-dasharray': [2, 2]
             }
           });
 
-          // Add route markers
-          routes.features.forEach((feature) => {
+          routes.features.forEach(feature => {
             const coords = feature.geometry.coordinates[0];
-            
-            const marker = new mapboxgl.Marker({
-              color: '#22c55e',
-              scale: 0.8
-            })
+            new mapboxgl.Marker({ color: '#22c55e', scale: 0.8 })
               .setLngLat(coords as [number, number])
               .setPopup(
-                new mapboxgl.Popup({ offset: 25 })
-                  .setHTML(`
-                    <div style="padding: 8px;">
-                      <h3 style="margin: 0 0 5px 0; font-size: 14px; font-weight: 600;">${feature.properties.name}</h3>
-                      <p style="margin: 0; font-size: 12px; color: #666;">
-                        ${feature.properties.estimatedTime} min walk
-                      </p>
-                      <p style="margin: 5px 0 0 0; font-size: 12px;">
-                        Accessibility: <span style="font-weight: 500;">${feature.properties.accessibility}</span>
-                      </p>
-                    </div>
-                  `)
+                new mapboxgl.Popup({ offset: 25 }).setHTML(`
+                  <div style="padding: 8px;">
+                    <h3 style="margin:0 0 5px 0; font-size:14px; font-weight:600;">${feature.properties.name}</h3>
+                    <p style="margin:0; font-size:12px; color:#666;">${feature.properties.estimatedTime} min walk</p>
+                    <p style="margin:5px 0 0 0; font-size:12px;">Accessibility: <span style="font-weight:500;">${feature.properties.accessibility}</span></p>
+                  </div>
+                `)
               )
               .addTo(map.current!);
           });
 
-          // Add click handlers for demo routes
-          map.current.on('click', 'demo-accessible-routes', (e) => {
-            if (e.features && e.features[0] && onRouteSelect) {
-              const routeId = e.features[0].properties?.id;
-              if (routeId) onRouteSelect(routeId);
+          map.current.on('click', 'demo-accessible-routes', e => {
+            if (e.features?.[0]?.properties?.id && onRouteSelect) {
+              onRouteSelect(e.features[0].properties.id);
             }
           });
-
-          map.current.on('click', 'demo-partial-routes', (e) => {
-            if (e.features && e.features[0] && onRouteSelect) {
-              const routeId = e.features[0].properties?.id;
-              if (routeId) onRouteSelect(routeId);
+          map.current.on('click', 'demo-partial-routes', e => {
+            if (e.features?.[0]?.properties?.id && onRouteSelect) {
+              onRouteSelect(e.features[0].properties.id);
             }
           });
         }
       });
 
-      map.current.on('error', (e) => {
-        console.error('Mapbox error:', e);
-      });
+      map.current.on('error', e => console.error('Mapbox error:', e));
 
     } catch (error) {
       console.error('Mapbox initialization error:', error);
     }
 
-    // Cleanup
-    return () => {
-      map.current?.remove();
-    };
+    return () => map.current?.remove();
   }, [mapboxToken, routes, selectedRoute, onRouteSelect]);
 
-  // Update layer visibility based on filters
+  // --- Layer visibility based on filters ---
   useEffect(() => {
     if (!map.current || !isMapLoaded) return;
 
-    // Toggle demo routes based on filters
-    if (map.current.getLayer('demo-accessible-routes')) {
-      map.current.setLayoutProperty(
-        'demo-accessible-routes',
-        'visibility',
-        filters.showAccessible ? 'visible' : 'none'
-      );
-    }
+    const demoLayers: [string, boolean][] = [
+      ['demo-accessible-routes', filters.showAccessible],
+      ['demo-partial-routes', filters.showPartial],
+    ];
 
-    if (map.current.getLayer('demo-partial-routes')) {
-      map.current.setLayoutProperty(
-        'demo-partial-routes', 
-        'visibility',
-        filters.showPartial ? 'visible' : 'none'
-      );
-    }
+    demoLayers.forEach(([layerId, visible]) => {
+      if (map.current!.getLayer(layerId)) {
+        map.current!.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none');
+      }
+    });
 
-    // TODO: Toggle actual Mapbox Studio layers based on filters
-    // Update these layer IDs based on your actual Mapbox Studio layer names
-    const layerMappings = {
+    const layerMappings: Record<string, string[]> = {
       showAccessible: ['Accessibility Routes', 'Accessible Entrances'],
       showCurbCuts: ['Curb Cuts'],
       showParking: ['ADA Parking Spots'],
@@ -230,11 +213,7 @@ const MapView: React.FC<MapViewProps> = ({
       const isVisible = filters[filterKey as keyof AccessibilityFilter];
       layerIds.forEach(layerId => {
         if (map.current?.getLayer(layerId)) {
-          map.current.setLayoutProperty(
-            layerId,
-            'visibility',
-            isVisible ? 'visible' : 'none'
-          );
+          map.current.setLayoutProperty(layerId, 'visibility', isVisible ? 'visible' : 'none');
         }
       });
     });
@@ -244,8 +223,28 @@ const MapView: React.FC<MapViewProps> = ({
   return (
     <div className="relative w-full h-screen">
       <div ref={mapContainer} className="absolute inset-0" />
-      
-      {/* Map overlay gradient for better UI visibility */}
+
+      {/* Sidebar for directions */}
+      <div
+        id="instructions"
+        className="instructions"
+        style={{
+          position: "absolute",
+          margin: "20px",
+          width: "25%",
+          top: 0,
+          bottom: "20%",
+          padding: "20px",
+          backgroundColor: "#fff",
+          overflowY: "scroll",
+          fontFamily: "sans-serif",
+          boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
+          borderRadius: "8px",
+          zIndex: 1,
+        }}
+      ></div>
+
+      {/* Map overlay gradient */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-background/20 to-transparent" />
         <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-background/20 to-transparent" />
