@@ -2,20 +2,27 @@ import React, { useState, useCallback } from 'react';
 import MapView from '@/components/MapView';
 import RouteControls from '@/components/RouteControls';
 import Header from '@/components/Header';
+import RoutePlanningModal from '@/components/RoutePlanningModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { AccessibilityFilter } from '@/types';
+import { Button } from '@/components/ui/button';
+import { AccessibilityFilter, Waypoint } from '@/types';
 import { demoRoutes } from '@/data/demoRoutes';
 import { useToast } from '@/hooks/use-toast';
+import { Plus } from 'lucide-react';
 
 const Index = () => {
   const [selectedRoute, setSelectedRoute] = useState<string>('');
   const [filters, setFilters] = useState<AccessibilityFilter>({
     showAccessible: true,
     showPartial: true,
-    showNonAccessible: false,
-    surfaceTypes: ['paved', 'mixed'],
-    maxDifficulty: 'challenging'
+    showCurbCuts: true,
+    showParking: true,
+    showElevators: true,
   });
+  
+  // Route planning state
+  const [isRoutePlanningOpen, setIsRoutePlanningOpen] = useState(false);
+  const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
   
   const { toast } = useToast();
 
@@ -41,6 +48,65 @@ const Index = () => {
     });
   }, [toast]);
 
+  // Route planning handlers
+  const handleRoutePlanningOpen = useCallback(() => {
+    setIsRoutePlanningOpen(true);
+  }, []);
+
+  const handleRoutePlanningClose = useCallback(() => {
+    setIsRoutePlanningOpen(false);
+  }, []);
+
+  const handleRoutePlan = useCallback(async (waypoints: Waypoint[]) => {
+    setWaypoints(waypoints);
+    toast({
+      title: "Route Planned",
+      description: `Route planned with ${waypoints.length} waypoints`,
+    });
+    setIsRoutePlanningOpen(false);
+  }, [toast]);
+
+  const handleSearch = useCallback(async (query: string) => {
+    // Mock search implementation
+    const mockResults = [
+      {
+        coordinates: [-80.4201, 37.2296] as [number, number],
+        address: 'Newman Library, Virginia Tech'
+      },
+      {
+        coordinates: [-80.4170, 37.2270] as [number, number],
+        address: 'Squires Student Center, Virginia Tech'
+      },
+      {
+        coordinates: [-80.4195, 37.2285] as [number, number],
+        address: 'Owens Food Court, Virginia Tech'
+      }
+    ];
+    
+    return mockResults.filter(result => 
+      result.address.toLowerCase().includes(query.toLowerCase())
+    );
+  }, []);
+
+  const handleGeolocation = useCallback(async (): Promise<[number, number]> => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error('Geolocation not supported'));
+        return;
+      }
+      
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          resolve([position.coords.longitude, position.coords.latitude]);
+        },
+        (error) => {
+          reject(error);
+        },
+        { enableHighAccuracy: true }
+      );
+    });
+  }, []);
+
   return (
     <div className="relative w-full h-screen bg-background overflow-hidden">
       {/* Header */}
@@ -58,13 +124,31 @@ const Index = () => {
         
         {/* Route controls overlay */}
         <RouteControls
-          routes={demoRoutes.features}
-          selectedRoute={selectedRoute}
           filters={filters}
-          onRouteSelect={handleRouteSelect}
           onFiltersChange={handleFiltersChange}
+          routeCount={demoRoutes.features.length}
         />
+
+        {/* Plan Route Button */}
+        <div className="absolute top-4 right-4 z-20">
+          <Button
+            onClick={handleRoutePlanningOpen}
+            className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Plan Route
+          </Button>
+        </div>
       </div>
+
+      {/* Route Planning Modal */}
+      <RoutePlanningModal
+        isOpen={isRoutePlanningOpen}
+        onClose={handleRoutePlanningClose}
+        onRoutePlan={handleRoutePlan}
+        onSearch={handleSearch}
+        onGeolocation={handleGeolocation}
+      />
 
       {/* Info Dialog */}
       <Dialog>

@@ -91,3 +91,31 @@ export const VT_CAMPUS_BOUNDS: [[number, number], [number, number]] = [
 ];
 
 export const VT_CAMPUS_CENTER: [number, number] = [-80.416748046875, 37.229217529296875];
+
+// Waypoint interface
+export interface Waypoint {
+  id: string;
+  name: string;
+  coordinates: [number, number]; // [longitude, latitude]
+  type: 'start' | 'end' | 'waypoint';
+  address?: string;
+  description?: string;
+  timestamp: Date;
+}
+
+// Coordinate input interface
+export interface CoordinateInput {
+  latitude: number;
+  longitude: number;
+  address?: string;
+  name?: string;
+}
+
+// Route planning state
+export interface RoutePlanningState {
+  waypoints: Waypoint[];
+  currentStep: 'start' | 'waypoints' | 'end' | 'planning' | 'navigating';
+  isPlanning: boolean;
+  selectedRoute?: string;
+  routeInfo?: any;
+}
