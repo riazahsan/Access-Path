@@ -3228,7 +3228,7 @@ export const buildings: Building[] = [
   {
     "id": "classroom-building",
     "name": "Classroom Building",
-    "shortName": "Classroom",
+    "shortName": "NCB",
     "coordinates": [
       -80.42689925092358,
       37.229372122435784
@@ -3252,7 +3252,7 @@ export const buildings: Building[] = [
   {
     "id": "cns-fiber-hut",
     "name": "CNS Fiber Hut",
-    "shortName": "CNS Fiber Hut",
+    "shortName": "CNS",
     "coordinates": [
       -80.43817130262951,
       37.21407776439865
@@ -3275,7 +3275,7 @@ export const buildings: Building[] = [
   {
     "id": "cochrane-hall",
     "name": "Cochrane Hall",
-    "shortName": "Cochrane Hall",
+    "shortName": "Cochrane",
     "coordinates": [
       -80.42209751082663,
       37.223001403598644
@@ -3557,7 +3557,7 @@ export const buildings: Building[] = [
   {
     "id": "cowgill-hall",
     "name": "Cowgill Hall",
-    "shortName": "Cowgill Hall",
+    "shortName": "Cowgill",
     "coordinates": [
       -80.42466870570391,
       37.22992181702908
@@ -3604,7 +3604,7 @@ export const buildings: Building[] = [
   {
     "id": "creativity-and-innovation-district-living-learning",
     "name": "Creativity and Innovation District - Living Learning Community",
-    "shortName": "Creativity and Community",
+    "shortName": "CID",
     "coordinates": [
       -80.41674168403694,
       37.2274358688539
@@ -3629,7 +3629,7 @@ export const buildings: Building[] = [
   {
     "id": "data-and-decision-sciences",
     "name": "Data and Decision Sciences",
-    "shortName": "Data and Sciences",
+    "shortName": "DDS",
     "coordinates": [
       -80.42737184156894,
       37.231619632760136
@@ -3653,7 +3653,7 @@ export const buildings: Building[] = [
   {
     "id": "davidson-hall",
     "name": "Davidson Hall",
-    "shortName": "Davidson Hall",
+    "shortName": "Davidson",
     "coordinates": [
       -80.42526205133946,
       37.22706549443739
@@ -3677,7 +3677,7 @@ export const buildings: Building[] = [
   {
     "id": "deer-pens",
     "name": "Deer Pens",
-    "shortName": "Deer Pens",
+    "shortName": "Deer",
     "coordinates": [
       -80.43818666884258,
       37.21060706683543
@@ -3701,7 +3701,7 @@ export const buildings: Building[] = [
   {
     "id": "derring-hall",
     "name": "Derring Hall",
-    "shortName": "Derring Hall",
+    "shortName": "Derring",
     "coordinates": [
       -80.42567601383121,
       37.229021682026215
@@ -3725,7 +3725,7 @@ export const buildings: Building[] = [
   {
     "id": "derring-hall-elevator-tower",
     "name": "Derring Hall Elevator Tower",
-    "shortName": "Derring Hall Tower",
+    "shortName": "Derring",
     "coordinates": [
       -80.42539740199815,
       37.22955427100802
@@ -3941,7 +3941,7 @@ export const buildings: Building[] = [
   {
     "id": "eggleston-hall-east-wing",
     "name": "Eggleston Hall - East Wing",
-    "shortName": "Eggleston Hall Wing",
+    "shortName": "East Egg",
     "coordinates": [
       -80.41943092841636,
       37.227697089125925
@@ -3966,7 +3966,7 @@ export const buildings: Building[] = [
   {
     "id": "eggleston-hall-main-wing",
     "name": "Eggleston Hall - Main Wing",
-    "shortName": "Eggleston Hall Wing",
+    "shortName": "Main Egg",
     "coordinates": [
       -80.42002715549724,
       37.22749064226981
@@ -3991,7 +3991,7 @@ export const buildings: Building[] = [
   {
     "id": "eggleston-hall-west-wing",
     "name": "Eggleston Hall - West Wing",
-    "shortName": "Eggleston Hall Wing",
+    "shortName": "West Egg",
     "coordinates": [
       -80.4201976645394,
       37.22688447459678
@@ -4016,7 +4016,7 @@ export const buildings: Building[] = [
   {
     "id": "engel-hall",
     "name": "Engel Hall",
-    "shortName": "Engel Hall",
+    "shortName": "Engel",
     "coordinates": [
       -80.42352034329295,
       37.223675618922336
@@ -5877,7 +5877,7 @@ export const buildings: Building[] = [
   {
     "id": "hoge-hall",
     "name": "Hoge Hall",
-    "shortName": "Hoge Hall",
+    "shortName": "Hoge",
     "coordinates": [
       -80.41844101506032,
       37.224541549243696
@@ -5902,7 +5902,7 @@ export const buildings: Building[] = [
   {
     "id": "holden-hall",
     "name": "Holden Hall",
-    "shortName": "Holden Hall",
+    "shortName": "Holden",
     "coordinates": [
       -80.42230905706293,
       37.23016354293867
@@ -5950,7 +5950,7 @@ export const buildings: Building[] = [
   {
     "id": "holtzman-alumni-center",
     "name": "Holtzman Alumni Center",
-    "shortName": "Holtzman Alumni Center",
+    "shortName": "Holtzman",
     "coordinates": [
       -80.4295238251641,
       37.22901369080098
