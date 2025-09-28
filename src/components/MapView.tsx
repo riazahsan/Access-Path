@@ -10,29 +10,48 @@ interface MapViewProps {
   selectedRoute?: string;
   filters: AccessibilityFilter;
   onRouteSelect?: (routeId: string) => void;
-  onFiltersChange?: (filters: AccessibilityFilter) => void;
 }
 
 const MapView: React.FC<MapViewProps> = ({ 
   routes, 
   selectedRoute, 
   filters,
-  onRouteSelect,
-  onFiltersChange
+  onRouteSelect 
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
-  
+
   const [mapboxToken] = useState<string>(
     "pk.eyJ1Ijoic2FtaXJraGF0dGFrIiwiYSI6ImNtZzJoZHNhNzB5czEyanEyY2RmbXdtM3kifQ.2xIoUu6wrMN5ALJbue0cEg"
   );
   const [isMapLoaded, setIsMapLoaded] = useState<boolean>(false);
 
-  // Constant starting point
-  const start: [number, number] = [-80.423710, 37.225825];
+  // Start location (dynamic from geolocation)
+  const [start, setStart] = useState<[number, number] | null>(null);
+
+  // Get user’s location on mount
+  useEffect(() => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          const coords: [number, number] = [pos.coords.longitude, pos.coords.latitude];
+          setStart(coords);
+        },
+        err => {
+          console.error("Geolocation error:", err);
+          // fallback (Blacksburg, VA)
+          setStart([-80.423710, 37.225825]);
+        },
+        { enableHighAccuracy: true }
+      );
+    } else {
+      console.warn("Geolocation not supported");
+      setStart([-80.423710, 37.225825]);
+    }
+  }, []);
 
   useEffect(() => {
-    if (!mapContainer.current || !mapboxToken) return;
+    if (!mapContainer.current || !mapboxToken || !start) return;
 
     try {
       mapboxgl.accessToken = mapboxToken;
@@ -69,38 +88,117 @@ const MapView: React.FC<MapViewProps> = ({
         ];
         map.current.setMaxBounds(bounds);
 
-        // --- Current Location Pin (green) ---
-        const currentLocationMarker = new mapboxgl.Marker({
-          color: '#22c55e',
-          scale: 1.2
-        })
-          .setLngLat(start)
-          .addTo(map.current);
+        // --- Origin Circle (user location) ---
+        map.current.addSource("origin-circle", {
+          type: "geojson",
+          data: {
+            type: "FeatureCollection",
+            features: [
+              {
+                type: "Feature",
+                properties: {},
+                geometry: { type: "Point", coordinates: start },
+              },
+            ],
+          },
+        });
 
-        // --- Destination Pin (initially empty, will be created on click) ---
-        let destinationMarker: mapboxgl.Marker | null = null;
+        map.current.addLayer({
+          id: "origin-circle",
+          type: "circle",
+          source: "origin-circle",
+          paint: { "circle-radius": 10, "circle-color": "#4ce05b" },
+        });
 
-        // --- Map click handler to set destination and route ---
+        // --- Destination Circle ---
+        map.current.addSource("destination-circle", {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+        });
+
+        map.current.addLayer({
+          id: "destination-circle",
+          type: "circle",
+          source: "destination-circle",
+          paint: { "circle-radius": 10, "circle-color": "#f30" },
+        });
+
+        // --- Map click handler: route from user location to click ---
         map.current.on("click", (event) => {
           const coords: [number, number] = [event.lngLat.lng, event.lngLat.lat];
 
-          // Remove existing destination marker if it exists
-          if (destinationMarker) {
-            destinationMarker.remove();
-          }
+          const endGeoJSON: GeoJSON.FeatureCollection<GeoJSON.Point> = {
+            type: "FeatureCollection",
+            features: [
+              { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: coords } },
+            ],
+          };
 
-          // Create new red pin marker for destination
-          destinationMarker = new mapboxgl.Marker({
-            color: '#ef4444',
-            scale: 1.2
-          })
-            .setLngLat(coords)
-            .addTo(map.current);
+          // Update destination circle
+          (map.current!.getSource("destination-circle") as mapboxgl.GeoJSONSource).setData(endGeoJSON);
 
           // Fetch and draw route
-          getRoute(map.current!, start, coords);
+          if (start) {
+            getRoute(map.current!, start, coords);
+          }
         });
 
+        // --- Demo Routes (unchanged) ---
+        if (routes?.features?.length > 0) {
+          map.current.addSource('demo-routes', { type: 'geojson', data: routes });
+
+          map.current.addLayer({
+            id: 'demo-accessible-routes',
+            type: 'line',
+            source: 'demo-routes',
+            filter: ['==', ['get', 'accessibility'], 'accessible'],
+            paint: {
+              'line-color': '#22c55e',
+              'line-width': ['case', ['==', ['get', 'id'], selectedRoute || ''], 6, 4],
+              'line-opacity': 0.8
+            }
+          });
+
+          map.current.addLayer({
+            id: 'demo-partial-routes',
+            type: 'line',
+            source: 'demo-routes',
+            filter: ['==', ['get', 'accessibility'], 'partial'],
+            paint: {
+              'line-color': '#f59e0b',
+              'line-width': ['case', ['==', ['get', 'id'], selectedRoute || ''], 6, 4],
+              'line-opacity': 0.8,
+              'line-dasharray': [2, 2]
+            }
+          });
+
+          routes.features.forEach(feature => {
+            const coords = feature.geometry.coordinates[0];
+            new mapboxgl.Marker({ color: '#22c55e', scale: 0.8 })
+              .setLngLat(coords as [number, number])
+              .setPopup(
+                new mapboxgl.Popup({ offset: 25 }).setHTML(`
+                  <div style="padding: 8px;">
+                    <h3 style="margin:0 0 5px 0; font-size:14px; font-weight:600;">${feature.properties.name}</h3>
+                    <p style="margin:0; font-size:12px; color:#666;">${feature.properties.estimatedTime} min walk</p>
+                    <p style="margin:5px 0 0 0; font-size:12px;">Accessibility: <span style="font-weight:500;">${feature.properties.accessibility}</span></p>
+                  </div>
+                `)
+              )
+              .addTo(map.current!);
+          });
+
+          map.current.on('click', 'demo-accessible-routes', e => {
+            if (e.features?.[0]?.properties?.id && onRouteSelect) {
+              onRouteSelect(e.features[0].properties.id);
+            }
+          });
+          map.current.on('click', 'demo-partial-routes', e => {
+            if (e.features?.[0]?.properties?.id && onRouteSelect) {
+              onRouteSelect(e.features[0].properties.id);
+            }
+          });
+        }
       });
 
       map.current.on('error', e => console.error('Mapbox error:', e));
@@ -110,128 +208,38 @@ const MapView: React.FC<MapViewProps> = ({
     }
 
     return () => map.current?.remove();
-  }, [mapboxToken, routes, selectedRoute, onRouteSelect]);
+  }, [mapboxToken, routes, selectedRoute, onRouteSelect, start]);
 
   // --- Layer visibility based on filters ---
   useEffect(() => {
     if (!map.current || !isMapLoaded) return;
 
-    console.log('🔄 Updating layer visibility with filters:', filters);
+    const demoLayers: [string, boolean][] = [
+      ['demo-accessible-routes', filters.showAccessible],
+      ['demo-partial-routes', filters.showPartial],
+    ];
 
+    demoLayers.forEach(([layerId, visible]) => {
+      if (map.current!.getLayer(layerId)) {
+        map.current!.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none');
+      }
+    });
 
-    // Get all available layers from the Mapbox style
-    const style = map.current.getStyle();
-    if (style && style.layers) {
-      const availableLayers = style.layers.map(layer => layer.id);
-      console.log('Available layers:', availableLayers);
+    const layerMappings: Record<string, string[]> = {
+      showAccessible: ['Accessibility Routes', 'Accessible Entrances'],
+      showCurbCuts: ['Curb Cuts'],
+      showParking: ['ADA Parking Spots'],
+      showElevators: ['Elevators']
+    };
 
-      // Auto-detect accessibility layers by name patterns - more specific matching
-      const detectedLayers = {
-        accessibleRoutes: availableLayers.filter(id => 
-          (id.toLowerCase().includes('route') || id.toLowerCase().includes('path')) &&
-          !id.toLowerCase().includes('entrance')
-        ),
-        accessibleEntrances: availableLayers.filter(id => 
-          id.toLowerCase().includes('entrance') && 
-          !id.toLowerCase().includes('route') &&
-          !id.toLowerCase().includes('path')
-        ),
-        curbCuts: availableLayers.filter(id => 
-          id.toLowerCase().includes('curb') ||
-          id.toLowerCase().includes('ramp')
-        ),
-        parking: availableLayers.filter(id => 
-          id.toLowerCase().includes('parking') ||
-          id.toLowerCase().includes('ada')
-        ),
-        elevators: availableLayers.filter(id => 
-          id.toLowerCase().includes('elevator') ||
-          id.toLowerCase().includes('lift')
-        )
-      };
-
-      console.log('Detected accessibility layers:', detectedLayers);
-
-      // Toggle accessible routes
-      detectedLayers.accessibleRoutes.forEach(layerId => {
-        try {
-          if (map.current?.getLayer(layerId)) {
-            map.current.setLayoutProperty(
-              layerId,
-              'visibility',
-              filters.showAccessible ? 'visible' : 'none'
-            );
-            console.log(`✅ Toggled accessible routes layer "${layerId}": ${filters.showAccessible ? 'visible' : 'hidden'}`);
-          }
-        } catch (error) {
-          console.warn(`Error toggling layer "${layerId}":`, error);
+    Object.entries(layerMappings).forEach(([filterKey, layerIds]) => {
+      const isVisible = filters[filterKey as keyof AccessibilityFilter];
+      layerIds.forEach(layerId => {
+        if (map.current?.getLayer(layerId)) {
+          map.current.setLayoutProperty(layerId, 'visibility', isVisible ? 'visible' : 'none');
         }
       });
-
-      // Toggle accessible entrances
-      detectedLayers.accessibleEntrances.forEach(layerId => {
-        try {
-          if (map.current?.getLayer(layerId)) {
-            map.current.setLayoutProperty(
-              layerId,
-              'visibility',
-              filters.showPartial ? 'visible' : 'none'
-            );
-            console.log(`✅ Toggled accessible entrances layer "${layerId}": ${filters.showPartial ? 'visible' : 'hidden'}`);
-          }
-        } catch (error) {
-          console.warn(`Error toggling layer "${layerId}":`, error);
-        }
-      });
-
-      // Toggle curb cuts
-      detectedLayers.curbCuts.forEach(layerId => {
-        try {
-          if (map.current?.getLayer(layerId)) {
-            map.current.setLayoutProperty(
-              layerId,
-              'visibility',
-              filters.showCurbCuts ? 'visible' : 'none'
-            );
-            console.log(`✅ Toggled curb cuts layer "${layerId}": ${filters.showCurbCuts ? 'visible' : 'hidden'}`);
-          }
-        } catch (error) {
-          console.warn(`Error toggling layer "${layerId}":`, error);
-        }
-      });
-
-      // Toggle parking
-      detectedLayers.parking.forEach(layerId => {
-        try {
-          if (map.current?.getLayer(layerId)) {
-            map.current.setLayoutProperty(
-              layerId,
-              'visibility',
-              filters.showParking ? 'visible' : 'none'
-            );
-            console.log(`✅ Toggled parking layer "${layerId}": ${filters.showParking ? 'visible' : 'hidden'}`);
-          }
-        } catch (error) {
-          console.warn(`Error toggling layer "${layerId}":`, error);
-        }
-      });
-
-      // Toggle elevators
-      detectedLayers.elevators.forEach(layerId => {
-        try {
-          if (map.current?.getLayer(layerId)) {
-            map.current.setLayoutProperty(
-              layerId,
-              'visibility',
-              filters.showElevators ? 'visible' : 'none'
-            );
-            console.log(`✅ Toggled elevators layer "${layerId}": ${filters.showElevators ? 'visible' : 'hidden'}`);
-          }
-        } catch (error) {
-          console.warn(`Error toggling layer "${layerId}":`, error);
-        }
-      });
-    }
+    });
 
   }, [filters, isMapLoaded]);
 
@@ -258,12 +266,6 @@ const MapView: React.FC<MapViewProps> = ({
           zIndex: 1,
         }}
       ></div>
-
-      {/* Map overlay gradient */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-background/20 to-transparent" />
-        <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-background/20 to-transparent" />
-      </div>
 
       {/* Loading indicator */}
       {!isMapLoaded && (
