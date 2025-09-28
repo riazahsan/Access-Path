@@ -1,16 +1,30 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Navigation, Accessibility, Map, Info } from 'lucide-react';
+import { Navigation, Accessibility, Map, Info, Plus } from 'lucide-react';
+import ThemeToggle from '@/components/ThemeToggle';
+import ConstructionDropdown, { type ConstructionBlockade } from '@/components/ConstructionDropdown';
 
 interface HeaderProps {
   onInfoClick?: () => void;
+  onPlanRouteClick?: () => void;
+  map?: any;
+  isMapLoaded?: boolean;
+  constructionBlockades?: ConstructionBlockade[];
+  onConstructionBlockadesChange?: (blockades: ConstructionBlockade[]) => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ onInfoClick }) => {
+const Header: React.FC<HeaderProps> = ({
+  onInfoClick,
+  onPlanRouteClick,
+  map,
+  isMapLoaded,
+  constructionBlockades,
+  onConstructionBlockadesChange
+}) => {
   return (
     <header className="absolute top-0 left-0 right-0 z-20 bg-gradient-primary text-primary-foreground shadow-accessible">
-      <div className="container mx-auto px-4 py-3">
+      <div className="w-full px-4 py-3">
         <div className="flex items-center justify-between">
           {/* Logo and title */}
           <div className="flex items-center gap-3">
@@ -31,18 +45,46 @@ const Header: React.FC<HeaderProps> = ({ onInfoClick }) => {
               <Map className="h-3 w-3 mr-1" />
               Virginia Tech
             </Badge>
-            
-            {onInfoClick && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onInfoClick}
-                className="text-primary-foreground hover:bg-white/20"
-              >
-                <Info className="h-4 w-4 mr-1" />
-                About
-              </Button>
-            )}
+
+            {/* Control buttons */}
+            <div className="flex items-center gap-2">
+              <ThemeToggle className="text-primary-foreground" />
+
+              {onPlanRouteClick && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onPlanRouteClick}
+                  className="text-primary-foreground hover:bg-white/20"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Plan Route
+                </Button>
+              )}
+
+              {map && onConstructionBlockadesChange && (
+                <div className="[&_button]:text-primary-foreground [&_button]:hover:bg-white/20 [&_button]:bg-transparent [&_button]:border-white/30">
+                  <ConstructionDropdown
+                    map={map}
+                    isMapLoaded={isMapLoaded || false}
+                    onBlockadesChange={onConstructionBlockadesChange}
+                    className="text-primary-foreground hover:bg-white/20 bg-transparent border-white/30"
+                  />
+                </div>
+              )}
+
+              {onInfoClick && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onInfoClick}
+                  className="text-primary-foreground hover:bg-white/20"
+                >
+                  <Info className="h-4 w-4 mr-1" />
+                  About
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>

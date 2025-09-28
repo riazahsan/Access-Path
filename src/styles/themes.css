@@ -1,0 +1,147 @@
+/* Theme-aware styles using CSS custom properties */
+
+/* Base theme variables are set by ThemeContext */
+:root {
+  /* Default light theme fallbacks */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8fafc;
+  --text-primary: #1f2937;
+  --text-secondary: #6b7280;
+  --border-color: #e5e7eb;
+  --route-accessible: #22c55e;
+  --route-moderate: #f59e0b;
+  --route-limited: #ef4444;
+  --route-default: #3887be;
+  --map-marker-bg: #ffffff;
+  --map-marker-border: #374151;
+}
+
+/* Theme-aware components */
+.theme-light,
+.theme-dark,
+.theme-high-contrast {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* Instructions panel theme support */
+.instructions {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+.instructions h4,
+.instructions p,
+.instructions strong {
+  color: var(--text-primary) !important;
+}
+
+.instructions .text-muted-foreground {
+  color: var(--text-secondary) !important;
+}
+
+/* Construction marker theme support */
+.construction-marker {
+  border-color: var(--map-marker-border) !important;
+  background-color: var(--map-marker-bg) !important;
+}
+
+/* High contrast mode specific overrides */
+.theme-high-contrast {
+  /* Ensure maximum contrast */
+}
+
+.theme-high-contrast .instructions {
+  border: 2px solid var(--border-color) !important;
+}
+
+.theme-high-contrast button,
+.theme-high-contrast .button {
+  border: 2px solid var(--border-color) !important;
+  font-weight: bold !important;
+}
+
+.theme-high-contrast input,
+.theme-high-contrast textarea,
+.theme-high-contrast select {
+  border: 2px solid var(--border-color) !important;
+}
+
+/* Dark mode specific overrides */
+.theme-dark .instructions {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.6) !important;
+}
+
+/* Accessibility focus indicators */
+.theme-high-contrast *:focus {
+  outline: 3px solid var(--border-color) !important;
+  outline-offset: 2px !important;
+}
+
+/* Route color support */
+.route-accessible {
+  color: var(--route-accessible) !important;
+}
+
+.route-moderate {
+  color: var(--route-moderate) !important;
+}
+
+.route-limited {
+  color: var(--route-limited) !important;
+}
+
+.route-default {
+  color: var(--route-default) !important;
+}
+
+/* Mapbox popup theme support */
+.mapboxgl-popup-content {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+.theme-high-contrast .mapboxgl-popup-content {
+  border: 2px solid var(--border-color) !important;
+}
+
+/* Card components theme support */
+.theme-dark .bg-muted,
+.theme-high-contrast .bg-muted {
+  background-color: var(--bg-secondary) !important;
+}
+
+.theme-dark .border,
+.theme-high-contrast .border {
+  border-color: var(--border-color) !important;
+}
+
+/* Button hover states for high contrast */
+.theme-high-contrast button:hover,
+.theme-high-contrast .button:hover {
+  background-color: var(--text-primary) !important;
+  color: var(--bg-primary) !important;
+}
+
+/* Ensure text remains readable in all themes */
+.theme-dark .text-foreground,
+.theme-high-contrast .text-foreground {
+  color: var(--text-primary) !important;
+}
+
+.theme-dark .text-muted-foreground,
+.theme-high-contrast .text-muted-foreground {
+  color: var(--text-secondary) !important;
+}
+
+/* Theme transition animations */
+* {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease !important;
+}
+
+/* Disable transitions for high contrast mode to avoid confusion */
+.theme-high-contrast * {
+  transition: none !important;
+}

@@ -3,6 +3,9 @@ import MapView from '@/components/MapView';
 import LayerControlMenu from '@/components/LayerControlMenu';
 import Header from '@/components/Header';
 import RoutePlanningModal from '@/components/RoutePlanningModal';
+import ConstructionDropdown, { type ConstructionBlockade } from '@/components/ConstructionDropdown';
+import ThemeToggle from '@/components/ThemeToggle';
+import { useMap } from '@/contexts/MapContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { AccessibilityFilter, Waypoint, Building } from '@/types';
@@ -28,7 +31,9 @@ const Index = () => {
     startName: string;
     endName: string;
   } | null>(null);
-  
+  const [constructionBlockades, setConstructionBlockades] = useState<ConstructionBlockade[]>([]);
+  const { map, isMapLoaded } = useMap();
+
   const { toast } = useToast();
 
   const handleRouteSelect = useCallback((routeId: string) => {
@@ -116,18 +121,25 @@ const Index = () => {
   return (
     <div className="relative w-full h-screen bg-background overflow-hidden">
       {/* Header */}
-      <Header onInfoClick={handleInfoClick} />
+      <Header
+        onInfoClick={handleInfoClick}
+        onPlanRouteClick={handleRoutePlanningOpen}
+        map={map.current}
+        isMapLoaded={isMapLoaded}
+        constructionBlockades={constructionBlockades}
+        onConstructionBlockadesChange={setConstructionBlockades}
+      />
       
       {/* Main content area - adjusted for header */}
       <div className="relative w-full h-screen pt-16">
         {/* Map view */}
         <MapView
-          routes={{ type: 'FeatureCollection', features: [] }}
           selectedRoute={selectedRoute}
           filters={filters}
           onRouteSelect={handleRouteSelect}
-          onFiltersChange={handleFiltersChange}
           plannedRoute={plannedRoute}
+          constructionBlockades={constructionBlockades}
+          onConstructionBlockadesChange={setConstructionBlockades}
         />
         
         {/* Layer control menu */}
@@ -135,17 +147,6 @@ const Index = () => {
           filters={filters}
           onFiltersChange={handleFiltersChange}
         />
-
-        {/* Plan Route Button */}
-        <div className="absolute top-4 right-4 z-20">
-          <Button
-            onClick={handleRoutePlanningOpen}
-            className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Plan Route
-          </Button>
-        </div>
       </div>
 
       {/* Route Planning Modal */}

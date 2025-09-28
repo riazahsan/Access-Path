@@ -1,6 +1,7 @@
 // utils/mapboxRoutes.ts
 import mapboxgl from "mapbox-gl";
 import { routeOptimizer, type OptimizedRoute } from "../services/routeOptimizer";
+import type { ConstructionBlockade } from "@/components/ConstructionManager";
 
 export interface RouteResult {
   distance: number;   // meters
@@ -16,11 +17,13 @@ export interface RouteResult {
  * @param map - Mapbox map instance
  * @param start - [lng, lat] start coordinate
  * @param end - [lng, lat] end coordinate
+ * @param constructionBlockades - Active construction blockades to avoid
  */
 export async function getRoute(
   map: mapboxgl.Map,
   start: [number, number],
-  end: [number, number]
+  end: [number, number],
+  constructionBlockades: ConstructionBlockade[] = []
 ): Promise<RouteResult | null> {
   if (!map) return null;
 
@@ -42,7 +45,9 @@ export async function getRoute(
     try {
       console.log('🔄 Optimizing route for accessibility...');
       const originalCoordinates = data.geometry.coordinates as [number, number][];
-      optimizedRoute = await routeOptimizer.optimizeRouteForAccessibility(originalCoordinates);
+      optimizedRoute = await routeOptimizer.optimizeRouteForAccessibility(originalCoordinates, {
+        constructionBlockades: constructionBlockades
+      });
 
       if (optimizedRoute && optimizedRoute.coordinates.length > 0) {
         console.log('✅ Route optimized for accessibility');

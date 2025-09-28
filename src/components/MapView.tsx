@@ -1,12 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { RouteCollection, AccessibilityFilter } from '@/types';
+import { AccessibilityFilter } from '@/types';
 import { Card } from '@/components/ui/card';
 import { getRoute } from '@/components/mapboxRoutes';
+import { type ConstructionBlockade } from '@/components/ConstructionDropdown';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useMap } from '@/contexts/MapContext';
 
 interface MapViewProps {
-  routes: RouteCollection;
   selectedRoute?: string;
   filters: AccessibilityFilter;
   onRouteSelect?: (routeId: string) => void;
@@ -16,17 +18,20 @@ interface MapViewProps {
     startName: string;
     endName: string;
   } | null;
+  constructionBlockades: ConstructionBlockade[];
+  onConstructionBlockadesChange: (blockades: ConstructionBlockade[]) => void;
 }
 
 const MapView: React.FC<MapViewProps> = ({
-  routes,
   selectedRoute,
   filters,
   onRouteSelect,
-  plannedRoute
+  plannedRoute,
+  constructionBlockades,
+  onConstructionBlockadesChange
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
+  const { map, isMapLoaded, setIsMapLoaded } = useMap();
   const routeMarkers = useRef<mapboxgl.Marker[]>([]);
   const currentRoute = useRef<{
     start: [number, number];
@@ -38,7 +43,7 @@ const MapView: React.FC<MapViewProps> = ({
   const [mapboxToken] = useState<string>(
     "pk.eyJ1Ijoic2FtaXJraGF0dGFrIiwiYSI6ImNtZzJoZHNhNzB5czEyanEyY2RmbXdtM3kifQ.2xIoUu6wrMN5ALJbue0cEg"
   );
-  const [isMapLoaded, setIsMapLoaded] = useState<boolean>(false);
+  const { theme } = useTheme();
 
   // Start location (dynamic from geolocation)
   const [start, setStart] = useState<[number, number] | null>(null);
@@ -195,7 +200,7 @@ const MapView: React.FC<MapViewProps> = ({
 
           // Use the existing getRoute function to draw the route and update instructions
           try {
-            getRoute(map.current, startCoord, endCoord).then((result) => {
+            getRoute(map.current, startCoord, endCoord, constructionBlockades).then((result) => {
               if (result) {
                 // Update the instructions panel with building names and accessibility info
                 const instructions = document.getElementById("instructions");
@@ -292,7 +297,7 @@ const MapView: React.FC<MapViewProps> = ({
 
         // Use the existing getRoute function to draw the route and update instructions
         try {
-          getRoute(map.current, startCoord, endCoord).then((result) => {
+          getRoute(map.current, startCoord, endCoord, constructionBlockades).then((result) => {
             if (result) {
               console.log('✅ Route drawn successfully:', result);
               // Update the instructions panel with building names and accessibility info
@@ -336,9 +341,21 @@ const MapView: React.FC<MapViewProps> = ({
     try {
       mapboxgl.accessToken = mapboxToken;
 
+      // Choose map style based on theme
+      const getMapStyle = () => {
+        switch (theme) {
+          case 'dark':
+            return 'mapbox://styles/mapbox/dark-v11';
+          case 'high-contrast':
+            return 'mapbox://styles/mapbox/dark-v11'; // Use dark for high contrast base
+          default:
+            return "mapbox://styles/samirkhattak/cmg2ldrpo000o01s14dc45qyz?fresh=true";
+        }
+      };
+
       map.current = new mapboxgl.Map({
         container: mapContainer.current,
-        style: "mapbox://styles/samirkhattak/cmg2ldrpo000o01s14dc45qyz?fresh=true",
+        style: getMapStyle(),
         center: start,
         zoom: 14,
         pitch: 0,
@@ -436,7 +453,7 @@ const MapView: React.FC<MapViewProps> = ({
 
           // Fetch and draw route
           if (start) {
-            getRoute(map.current!, start, coords);
+            getRoute(map.current!, start, coords, constructionBlockades);
           }
         });
 
@@ -449,7 +466,7 @@ const MapView: React.FC<MapViewProps> = ({
             if (currentRoute.current && map.current) {
               const { start: startCoord, end: endCoord, startName, endName } = currentRoute.current;
               addRouteMarkers(startCoord, endCoord, startName, endName);
-              getRoute(map.current, startCoord, endCoord);
+              getRoute(map.current, startCoord, endCoord, constructionBlockades);
             }
           }, 1000);
         }
@@ -467,85 +484,6 @@ const MapView: React.FC<MapViewProps> = ({
     };
   }, [mapboxToken, start]); // Only recreate map if token or start location changes
 
-  // Separate effect for demo routes that doesn't recreate the map
-  useEffect(() => {
-    if (!map.current || !isMapLoaded || !routes?.features?.length) return;
-
-    console.log('🎭 Adding demo routes to existing map');
-
-    // Remove existing demo routes if they exist
-    if (map.current.getLayer('demo-accessible-routes')) {
-      map.current.removeLayer('demo-accessible-routes');
-    }
-    if (map.current.getLayer('demo-partial-routes')) {
-      map.current.removeLayer('demo-partial-routes');
-    }
-    if (map.current.getSource('demo-routes')) {
-      map.current.removeSource('demo-routes');
-    }
-
-    try {
-      // Add demo routes
-      map.current.addSource('demo-routes', { type: 'geojson', data: routes });
-
-      map.current.addLayer({
-        id: 'demo-accessible-routes',
-        type: 'line',
-        source: 'demo-routes',
-        filter: ['==', ['get', 'accessibility'], 'accessible'],
-        paint: {
-          'line-color': '#22c55e',
-          'line-width': ['case', ['==', ['get', 'id'], selectedRoute || ''], 6, 4],
-          'line-opacity': 0.8
-        }
-      });
-
-      map.current.addLayer({
-        id: 'demo-partial-routes',
-        type: 'line',
-        source: 'demo-routes',
-        filter: ['==', ['get', 'accessibility'], 'partial'],
-        paint: {
-          'line-color': '#f59e0b',
-          'line-width': ['case', ['==', ['get', 'id'], selectedRoute || ''], 6, 4],
-          'line-opacity': 0.8,
-          'line-dasharray': [2, 2]
-        }
-      });
-
-      routes.features.forEach(feature => {
-        const coords = feature.geometry.coordinates[0];
-        new mapboxgl.Marker({ color: '#22c55e', scale: 0.8 })
-          .setLngLat(coords as [number, number])
-          .setPopup(
-            new mapboxgl.Popup({ offset: 25 }).setHTML(`
-              <div style="padding: 8px;">
-                <h3 style="margin:0 0 5px 0; font-size:14px; font-weight:600;">${feature.properties.name}</h3>
-                <p style="margin:0; font-size:12px; color:#666;">${feature.properties.estimatedTime} min walk</p>
-                <p style="margin:5px 0 0 0; font-size:12px;">Accessibility: <span style="font-weight:500;">${feature.properties.accessibility}</span></p>
-              </div>
-            `)
-          )
-          .addTo(map.current!);
-      });
-
-      // Add click handlers
-      map.current.on('click', 'demo-accessible-routes', e => {
-        if (e.features?.[0]?.properties?.id && onRouteSelect) {
-          onRouteSelect(e.features[0].properties.id);
-        }
-      });
-      map.current.on('click', 'demo-partial-routes', e => {
-        if (e.features?.[0]?.properties?.id && onRouteSelect) {
-          onRouteSelect(e.features[0].properties.id);
-        }
-      });
-
-      console.log('✅ Demo routes added successfully');
-    } catch (error) {
-      console.error('❌ Error adding demo routes:', error);
-    }
-  }, [routes, selectedRoute, onRouteSelect, isMapLoaded]);
 
 
   // --- Layer visibility based on filters ---
@@ -581,6 +519,126 @@ const MapView: React.FC<MapViewProps> = ({
 
   }, [filters, isMapLoaded]);
 
+  // Update map style when theme changes
+  useEffect(() => {
+    if (!map.current || !isMapLoaded) return;
+
+    const getMapStyle = () => {
+      switch (theme) {
+        case 'dark':
+          return 'mapbox://styles/mapbox/dark-v11';
+        case 'high-contrast':
+          return 'mapbox://styles/mapbox/dark-v11';
+        default:
+          return "mapbox://styles/samirkhattak/cmg2ldrpo000o01s14dc45qyz?fresh=true";
+      }
+    };
+
+    map.current.setStyle(getMapStyle());
+    console.log('🎨 Map style updated for theme:', theme);
+
+    // Add event listener to restore all map elements after style loads
+    const restoreMapElements = () => {
+      if (!map.current || !start) return;
+
+      // Wait a bit for style to fully load
+      setTimeout(() => {
+        if (!map.current) return;
+
+        try {
+          // Restore origin circle (user location)
+          if (!map.current.getSource("origin-circle")) {
+            map.current.addSource("origin-circle", {
+              type: "geojson",
+              data: {
+                type: "FeatureCollection",
+                features: [
+                  {
+                    type: "Feature",
+                    properties: {},
+                    geometry: { type: "Point", coordinates: start },
+                  },
+                ],
+              },
+            });
+
+            map.current.addLayer({
+              id: "origin-circle",
+              type: "circle",
+              source: "origin-circle",
+              paint: { "circle-radius": 10, "circle-color": "#4ce05b" },
+            });
+
+            console.log('🎯 Origin circle restored after style change');
+          }
+
+          // Restore destination circle
+          if (!map.current.getSource("destination-circle")) {
+            map.current.addSource("destination-circle", {
+              type: "geojson",
+              data: { type: "FeatureCollection", features: [] },
+            });
+
+            map.current.addLayer({
+              id: "destination-circle",
+              type: "circle",
+              source: "destination-circle",
+              paint: { "circle-radius": 10, "circle-color": "#f30" },
+            });
+
+            console.log('🎯 Destination circle restored after style change');
+          }
+
+          // Restore map click handler
+          map.current.off('click'); // Remove any existing click handlers
+          map.current.on("click", (event) => {
+            const coords: [number, number] = [event.lngLat.lng, event.lngLat.lat];
+
+            // Clear building markers from planned route
+            clearRouteMarkers();
+
+            // Clear the current route reference since this is a manual click
+            currentRoute.current = null;
+
+            const endGeoJSON: GeoJSON.FeatureCollection<GeoJSON.Point> = {
+              type: "FeatureCollection",
+              features: [
+                { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: coords } },
+              ],
+            };
+
+            // Update destination circle
+            (map.current!.getSource("destination-circle") as mapboxgl.GeoJSONSource).setData(endGeoJSON);
+
+            // Reset origin circle to user's current location (not the planned route start)
+            if (start) {
+              const originGeoJSON: GeoJSON.FeatureCollection<GeoJSON.Point> = {
+                type: "FeatureCollection",
+                features: [
+                  { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: start } },
+                ],
+              };
+              (map.current!.getSource("origin-circle") as mapboxgl.GeoJSONSource).setData(originGeoJSON);
+            }
+
+            // Fetch and draw route
+            if (start) {
+              getRoute(map.current!, start, coords, constructionBlockades);
+            }
+          });
+
+          console.log('🖱️ Map click handler restored after style change');
+
+
+        } catch (error) {
+          console.warn('Could not restore map elements:', error);
+        }
+      }, 500); // Increased timeout to ensure style is fully loaded
+    };
+
+    map.current.once('styledata', restoreMapElements);
+  }, [theme, isMapLoaded, start, selectedRoute, onRouteSelect, constructionBlockades]);
+
   return (
     <div className="relative w-full h-screen">
       <div ref={mapContainer} className="absolute inset-0" />
@@ -596,31 +654,44 @@ const MapView: React.FC<MapViewProps> = ({
           top: 0,
           bottom: "20%",
           padding: "20px",
-          backgroundColor: "#fff",
+          backgroundColor: "var(--bg-primary)",
+          color: "var(--text-primary)",
           overflowY: "scroll",
           fontFamily: "sans-serif",
-          boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
+          boxShadow: theme === 'dark' ? "0 4px 12px rgba(0,0,0,0.6)" : "0 2px 6px rgba(0,0,0,0.3)",
           borderRadius: "8px",
+          border: theme === 'high-contrast' ? "2px solid var(--border-color)" : "1px solid var(--border-color)",
           zIndex: 1,
         }}
       >
-        <div style={{ marginBottom: "15px", padding: "10px", background: "#f8fafc", borderRadius: "6px" }}>
-          <h4 style={{ margin: "0 0 8px 0", fontWeight: "bold", fontSize: "14px" }}>♿ Route Accessibility</h4>
-          <div style={{ fontSize: "12px", lineHeight: "1.4" }}>
+        <div style={{
+          marginBottom: "15px",
+          padding: "10px",
+          background: "var(--bg-secondary)",
+          borderRadius: "6px",
+          border: theme === 'high-contrast' ? "1px solid var(--border-color)" : "none"
+        }}>
+          <h4 style={{
+            margin: "0 0 8px 0",
+            fontWeight: "bold",
+            fontSize: "14px",
+            color: "var(--text-primary)"
+          }}>♿ Route Accessibility</h4>
+          <div style={{ fontSize: "12px", lineHeight: "1.4", color: "var(--text-primary)" }}>
             <div style={{ display: "flex", alignItems: "center", marginBottom: "4px" }}>
-              <div style={{ width: "16px", height: "3px", backgroundColor: "#22c55e", marginRight: "8px", borderRadius: "2px" }}></div>
+              <div style={{ width: "16px", height: "3px", backgroundColor: "var(--route-accessible)", marginRight: "8px", borderRadius: "2px" }}></div>
               <span>High accessibility (80%+)</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", marginBottom: "4px" }}>
-              <div style={{ width: "16px", height: "3px", backgroundColor: "#f59e0b", marginRight: "8px", borderRadius: "2px" }}></div>
+              <div style={{ width: "16px", height: "3px", backgroundColor: "var(--route-moderate)", marginRight: "8px", borderRadius: "2px" }}></div>
               <span>Moderate accessibility (50-80%)</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", marginBottom: "4px" }}>
-              <div style={{ width: "16px", height: "3px", backgroundColor: "#ef4444", marginRight: "8px", borderRadius: "2px" }}></div>
+              <div style={{ width: "16px", height: "3px", backgroundColor: "var(--route-limited)", marginRight: "8px", borderRadius: "2px" }}></div>
               <span>Limited accessibility (&lt;50%)</span>
             </div>
             <div style={{ display: "flex", alignItems: "center" }}>
-              <div style={{ width: "16px", height: "3px", backgroundColor: "#3887be", marginRight: "8px", borderRadius: "2px" }}></div>
+              <div style={{ width: "16px", height: "3px", backgroundColor: "var(--route-default)", marginRight: "8px", borderRadius: "2px" }}></div>
               <span>Not optimized</span>
             </div>
           </div>

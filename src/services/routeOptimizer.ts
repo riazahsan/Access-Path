@@ -1,6 +1,7 @@
 import { distance, lineString, nearestPointOnLine, along } from '@turf/turf';
 import type { Feature, LineString, Point } from 'geojson';
 import { accessibilityService, type AccessibleRoute, type RouteSegment } from './accessibilityService';
+import type { ConstructionBlockade } from '@/components/ConstructionManager';
 
 export interface OptimizedRoute {
   coordinates: [number, number][];
@@ -17,6 +18,7 @@ export interface RouteOptimizationOptions {
   preferredAccessibility: 'strict' | 'balanced' | 'flexible';
   includeCurbCuts: boolean;
   includeElevators: boolean;
+  constructionBlockades?: ConstructionBlockade[]; // Active construction blockades to avoid
 }
 
 class RouteOptimizer {
@@ -26,6 +28,7 @@ class RouteOptimizer {
     preferredAccessibility: 'balanced',
     includeCurbCuts: true,
     includeElevators: true,
+    constructionBlockades: [],
   };
 
   /**
@@ -114,6 +117,33 @@ class RouteOptimizer {
 
     const analyzedSegments = await Promise.all(
       segments.map(async (segment) => {
+        // Check for construction blockades first
+        const blockadeCheck = this.checkConstructionBlockades(
+          segment,
+          options.constructionBlockades || []
+        );
+
+        if (blockadeCheck.hasBlockade) {
+          console.log(`🚧 Construction blockade detected for segment, creating detour...`);
+
+          // Create detour to avoid construction
+          const detourCoords = this.findAlternativeAvoidingBlockades(
+            segment,
+            blockadeCheck.blockades,
+            options
+          );
+
+          if (detourCoords) {
+            return {
+              ...segment,
+              isAccessible: false, // Construction detours are typically less accessible
+              hasConstructionBlockade: true,
+              constructionDetour: detourCoords,
+              affectedBlockades: blockadeCheck.blockades,
+            };
+          }
+        }
+
         // Find nearby accessible routes
         const midpoint: [number, number] = [
           (segment.startCoord[0] + segment.endCoord[0]) / 2,
@@ -296,6 +326,11 @@ class RouteOptimizer {
         const altCoords = segment.accessibleAlternative.geometry.coordinates;
         // Skip the first coordinate to avoid duplication
         coordinates.push(...altCoords.slice(1) as [number, number][]);
+      } else if ((segment as any).constructionDetour) {
+        // If using construction detour, add detour coordinates
+        const detourCoords = (segment as any).constructionDetour as [number, number][];
+        // Skip the first coordinate to avoid duplication
+        coordinates.push(...detourCoords.slice(1));
       } else {
         // Add end coordinate
         coordinates.push(segment.endCoord);
@@ -372,7 +407,104 @@ class RouteOptimizer {
       );
     }
 
+    // Check for construction blockade warnings
+    const constructionSegments = segments.filter(s => (s as any).hasConstructionBlockade);
+    if (constructionSegments.length > 0) {
+      warnings.push(
+        `🚧 ${constructionSegments.length} segment(s) have construction detours`
+      );
+
+      // Add specific blockade warnings
+      const allBlockades = constructionSegments.flatMap(s => (s as any).affectedBlockades || []);
+      const uniqueBlockades = allBlockades.filter((blockade, index, self) =>
+        self.findIndex(b => b.id === blockade.id) === index
+      );
+
+      uniqueBlockades.forEach(blockade => {
+        warnings.push(
+          `🚧 Construction: ${blockade.title} (${blockade.severity} severity)`
+        );
+      });
+    }
+
     return warnings;
+  }
+
+  /**
+   * Check if a route segment intersects with construction blockades
+   */
+  private checkConstructionBlockades(
+    segment: RouteSegment,
+    constructionBlockades: ConstructionBlockade[]
+  ): { hasBlockade: boolean; blockades: ConstructionBlockade[] } {
+    const intersectingBlockades: ConstructionBlockade[] = [];
+
+    for (const blockade of constructionBlockades) {
+      // Check if segment midpoint is within blockade radius
+      const midpoint: [number, number] = [
+        (segment.startCoord[0] + segment.endCoord[0]) / 2,
+        (segment.startCoord[1] + segment.endCoord[1]) / 2,
+      ];
+
+      const distanceToBlockade = distance(
+        { type: 'Point', coordinates: midpoint },
+        { type: 'Point', coordinates: blockade.coordinates },
+        { units: 'meters' }
+      );
+
+      if (distanceToBlockade <= blockade.radius) {
+        intersectingBlockades.push(blockade);
+      }
+    }
+
+    return {
+      hasBlockade: intersectingBlockades.length > 0,
+      blockades: intersectingBlockades
+    };
+  }
+
+  /**
+   * Find alternative route that avoids construction blockades
+   */
+  private findAlternativeAvoidingBlockades(
+    segment: RouteSegment,
+    blockades: ConstructionBlockade[],
+    options: RouteOptimizationOptions
+  ): [number, number][] | null {
+    // Simple detour calculation - move perpendicular to avoid blockade
+    const mostSevereBlockade = blockades.reduce((prev, current) =>
+      (prev.severity === 'high' || current.severity !== 'high') ? prev : current
+    );
+
+    const detourDistance = mostSevereBlockade.radius + 20; // Add 20m buffer
+
+    // Calculate perpendicular detour points
+    const dx = segment.endCoord[0] - segment.startCoord[0];
+    const dy = segment.endCoord[1] - segment.startCoord[1];
+    const length = Math.sqrt(dx * dx + dy * dy);
+
+    if (length === 0) return null;
+
+    // Normalize and create perpendicular vector
+    const perpX = -dy / length;
+    const perpY = dx / length;
+
+    // Convert meters to approximate degrees (rough approximation)
+    const degreesPerMeter = 1 / 111000;
+    const detourDegrees = detourDistance * degreesPerMeter;
+
+    // Create detour points
+    const midpoint: [number, number] = [
+      (segment.startCoord[0] + segment.endCoord[0]) / 2,
+      (segment.startCoord[1] + segment.endCoord[1]) / 2,
+    ];
+
+    const detourPoint: [number, number] = [
+      midpoint[0] + perpX * detourDegrees,
+      midpoint[1] + perpY * detourDegrees,
+    ];
+
+    return [segment.startCoord, detourPoint, segment.endCoord];
   }
 }
 
