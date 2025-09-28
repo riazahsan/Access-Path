@@ -38,6 +38,7 @@ const Index = () => {
   }, [toast]);
 
   const handleFiltersChange = useCallback((newFilters: AccessibilityFilter) => {
+    console.log('🔄 Index: Received filter change:', newFilters);
     setFilters(newFilters);
   }, []);
 

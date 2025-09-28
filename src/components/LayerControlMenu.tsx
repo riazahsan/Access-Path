@@ -23,6 +23,7 @@ const LayerControlMenu: React.FC<LayerControlMenuProps> = ({
   const [isExpanded, setIsExpanded] = useState(false);
 
   const handleFilterChange = (filterKey: keyof AccessibilityFilter, value: boolean) => {
+    console.log(`🔄 LayerControl: Changing ${filterKey} to ${value}`);
     onFiltersChange({
       ...filters,
       [filterKey]: value

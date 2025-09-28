@@ -193,6 +193,8 @@ const MapView: React.FC<MapViewProps> = ({
   useEffect(() => {
     if (!map.current || !isMapLoaded) return;
 
+    console.log('🔄 Updating layer visibility with filters:', filters);
+
     const demoLayers: [string, boolean][] = [
       ['demo-accessible-routes', filters.showAccessible],
       ['demo-partial-routes', filters.showPartial],
@@ -201,6 +203,7 @@ const MapView: React.FC<MapViewProps> = ({
     demoLayers.forEach(([layerId, visible]) => {
       if (map.current!.getLayer(layerId)) {
         map.current!.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none');
+        console.log(`✅ Toggled demo layer "${layerId}": ${visible ? 'visible' : 'hidden'}`);
       }
     });
 
@@ -211,12 +214,16 @@ const MapView: React.FC<MapViewProps> = ({
       const availableLayers = style.layers.map(layer => layer.id);
       console.log('Available layers:', availableLayers);
 
-      // Auto-detect accessibility layers by name patterns
+      // Auto-detect accessibility layers by name patterns - more specific matching
       const detectedLayers = {
+        accessibleRoutes: availableLayers.filter(id => 
+          (id.toLowerCase().includes('route') || id.toLowerCase().includes('path')) &&
+          !id.toLowerCase().includes('entrance')
+        ),
         accessibleEntrances: availableLayers.filter(id => 
-          id.toLowerCase().includes('entrance') || 
-          id.toLowerCase().includes('accessible') ||
-          id.toLowerCase().includes('access')
+          id.toLowerCase().includes('entrance') && 
+          !id.toLowerCase().includes('route') &&
+          !id.toLowerCase().includes('path')
         ),
         curbCuts: availableLayers.filter(id => 
           id.toLowerCase().includes('curb') ||
@@ -233,6 +240,22 @@ const MapView: React.FC<MapViewProps> = ({
       };
 
       console.log('Detected accessibility layers:', detectedLayers);
+
+      // Toggle accessible routes
+      detectedLayers.accessibleRoutes.forEach(layerId => {
+        try {
+          if (map.current?.getLayer(layerId)) {
+            map.current.setLayoutProperty(
+              layerId,
+              'visibility',
+              filters.showAccessible ? 'visible' : 'none'
+            );
+            console.log(`✅ Toggled accessible routes layer "${layerId}": ${filters.showAccessible ? 'visible' : 'hidden'}`);
+          }
+        } catch (error) {
+          console.warn(`Error toggling layer "${layerId}":`, error);
+        }
+      });
 
       // Toggle accessible entrances
       detectedLayers.accessibleEntrances.forEach(layerId => {
