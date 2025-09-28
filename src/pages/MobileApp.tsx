@@ -28,6 +28,7 @@ const MobileApp: React.FC = () => {
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(true);
   const [wakeLock, setWakeLock] = useState<any>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const locationWatchId = useRef<number | null>(null);
 
   // Parse route data from URL parameters
   useEffect(() => {
@@ -70,23 +71,16 @@ const MobileApp: React.FC = () => {
     // Convert to compass bearing (0° = North, clockwise)
     bearing = (bearing + 360) % 360;
 
-    console.log(`Bearing calculation: lat1=${lat1}, lng1=${lng1}, lat2=${lat2}, lng2=${lng2}, bearing=${bearing}`);
     return bearing;
   };
 
   const getArrowRotation = (): number => {
     if (!userLocation || userHeading === null || !routeData) {
-      console.log('Missing data for arrow rotation:', {
-        userLocation: !!userLocation,
-        userHeading: userHeading,
-        routeData: !!routeData
-      });
       return 0;
     }
 
     const currentWaypoint = routeData.waypoints[routeData.currentWaypoint];
     if (!currentWaypoint) {
-      console.log('No current waypoint');
       return 0;
     }
 
@@ -95,7 +89,7 @@ const MobileApp: React.FC = () => {
       currentWaypoint.lat, currentWaypoint.lng
     );
 
-    // Calculate the rotation needed for the arrow
+    // FIXED: Correct arrow rotation calculation
     // The arrow should point in the direction of the destination
     // relative to the user's current heading
     let rotation = bearing - userHeading;
@@ -108,16 +102,10 @@ const MobileApp: React.FC = () => {
     // reduce arrow movement to avoid jittery behavior
     const distance = getDistanceToNextWaypoint();
     if (distance < 5) {
-      rotation = rotation * 0.5; // Dampen rotation when very close
+      rotation = rotation * 0.3; // Dampen rotation when very close
     }
 
-    console.log(`Arrow Rotation Calculation:`);
-    console.log(`- User Location: ${userLocation.lat.toFixed(6)}, ${userLocation.lng.toFixed(6)}`);
-    console.log(`- Target: ${currentWaypoint.lat.toFixed(6)}, ${currentWaypoint.lng.toFixed(6)}`);
-    console.log(`- Distance: ${distance.toFixed(1)}m`);
-    console.log(`- Bearing: ${bearing.toFixed(1)}°`);
-    console.log(`- User Heading: ${userHeading.toFixed(1)}°`);
-    console.log(`- Arrow Rotation: ${rotation.toFixed(1)}°`);
+    console.log(`Arrow Rotation: bearing=${bearing.toFixed(1)}°, heading=${userHeading.toFixed(1)}°, rotation=${rotation.toFixed(1)}°`);
 
     return rotation;
   };
@@ -153,84 +141,168 @@ const MobileApp: React.FC = () => {
         }
       }
 
-      // Then request camera permission with mobile-optimized settings
+      // FIXED: Enhanced camera stream configuration for better mobile compatibility
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: 'environment', // Use rear camera for AR navigation
-          width: { ideal: 1920, min: 640 },
-          height: { ideal: 1080, min: 480 },
-          frameRate: { ideal: 30, min: 15 }
-        }
+          facingMode: 'environment',
+          width: { ideal: 1920, min: 640, max: 3840 },
+          height: { ideal: 1080, min: 480, max: 2160 },
+          frameRate: { ideal: 30, min: 15, max: 60 }
+        },
+        audio: false
       });
 
       setCameraStream(stream);
       setShowPermissionPrompt(false);
       setIsNavigating(true);
 
+      // FIXED: Ensure video plays immediately
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.muted = true;
+        videoRef.current.playsInline = true;
+        
+        // Force play with error handling
+        const playPromise = videoRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(error => {
+            console.error('Video play error:', error);
+            // Retry after user interaction
+            document.addEventListener('touchstart', () => {
+              if (videoRef.current) {
+                videoRef.current.play().catch(console.error);
+              }
+            }, { once: true });
+          });
+        }
+      }
+
       // Request screen wake lock to keep screen on during navigation
       try {
         if ('wakeLock' in navigator) {
           const wakeLockObj = await (navigator as any).wakeLock.request('screen');
           setWakeLock(wakeLockObj);
-          console.log('✅ Screen wake lock acquired');
+          console.log('Screen wake lock acquired');
         }
       } catch (err) {
-        console.log('⚠️ Wake lock request failed:', err);
+        console.log('Wake lock request failed:', err);
       }
 
-      console.log('✅ Camera and orientation access granted');
+      console.log('Camera and orientation access granted');
     } catch (error) {
-      console.error('❌ Permission denied:', error);
+      console.error('Permission denied:', error);
       alert('Camera and motion access are required for AR navigation');
     }
   };
 
   const startNavigation = () => {
-    // Get user location with high accuracy
+    // FIXED: Use watchPosition with better error handling and accuracy
     if (navigator.geolocation) {
-      navigator.geolocation.watchPosition(
+      locationWatchId.current = navigator.geolocation.watchPosition(
         (position) => {
-          const newLocation = { lat: position.coords.latitude, lng: position.coords.longitude };
+          const newLocation = { 
+            lat: position.coords.latitude, 
+            lng: position.coords.longitude 
+          };
           setUserLocation(newLocation);
-          console.log('Location updated:', newLocation);
+          console.log('Location updated:', newLocation, 'Accuracy:', position.coords.accuracy);
         },
-        (error) => console.error('Location error:', error),
+        (error) => {
+          console.error('Location error:', error);
+          // Fallback to less accurate positioning
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              setUserLocation({ 
+                lat: position.coords.latitude, 
+                lng: position.coords.longitude 
+              });
+            },
+            console.error,
+            { enableHighAccuracy: false, timeout: 15000 }
+          );
+        },
         {
           enableHighAccuracy: true,
           timeout: 10000,
-          maximumAge: 1000
+          maximumAge: 2000
         }
       );
     }
 
-    // Get device orientation with more frequent updates
+    // FIXED: Enhanced device orientation handling
     if (window.DeviceOrientationEvent) {
-      // Remove any existing listeners first
-      window.removeEventListener('deviceorientation', handleDeviceOrientation);
-      window.addEventListener('deviceorientation', handleDeviceOrientation, { passive: true });
+      window.addEventListener('deviceorientationabsolute', handleDeviceOrientation, { passive: true });
+      // Fallback for devices that don't support absolute orientation
+      window.addEventListener('deviceorientation', handleDeviceOrientationFallback, { passive: true });
     }
   };
 
+  // FIXED: Primary device orientation handler with absolute compass heading
   const handleDeviceOrientation = (event: DeviceOrientationEvent) => {
     if (event.alpha !== null && event.alpha !== undefined) {
-      // The alpha value represents the compass heading
-      // Convert from 0-360 range where 0° = North
-      setUserHeading(event.alpha);
-      console.log('Device orientation updated:', event.alpha);
+      // Use absolute compass heading for more accurate navigation
+      let heading = event.alpha;
       
-      // Force update arrow direction immediately
-      if (routeData && userLocation) {
-        const currentWaypoint = routeData.waypoints[routeData.currentWaypoint];
-        if (currentWaypoint) {
-          const bearing = calculateBearing(
-            userLocation.lat, userLocation.lng,
-            currentWaypoint.lat, currentWaypoint.lng
-          );
-          console.log(`Updated bearing: ${bearing}°, heading: ${event.alpha}°`);
-        }
+      // For iOS, we might need to adjust based on screen orientation
+      if (window.orientation !== undefined) {
+        heading = (heading + window.orientation) % 360;
       }
+      
+      setUserHeading(heading);
+      console.log('Device orientation (absolute):', heading.toFixed(1), '°');
     }
   };
+
+  // FIXED: Fallback device orientation handler
+  const handleDeviceOrientationFallback = (event: DeviceOrientationEvent) => {
+    if (event.alpha !== null && event.alpha !== undefined && userHeading === null) {
+      let heading = event.alpha;
+      
+      // Adjust for screen orientation
+      if (window.orientation !== undefined) {
+        heading = (heading + window.orientation) % 360;
+      }
+      
+      setUserHeading(heading);
+      console.log('Device orientation (fallback):', heading.toFixed(1), '°');
+    }
+  };
+
+  // FIXED: Enhanced video element setup
+  useEffect(() => {
+    if (cameraStream && videoRef.current) {
+      const video = videoRef.current;
+      video.srcObject = cameraStream;
+      video.muted = true;
+      video.playsInline = true;
+      video.setAttribute('webkit-playsinline', 'true');
+      video.setAttribute('playsinline', 'true');
+      
+      // Ensure video starts playing
+      const startVideo = async () => {
+        try {
+          await video.play();
+          console.log('Video started playing successfully');
+        } catch (error) {
+          console.error('Failed to start video:', error);
+          // Try again on user interaction
+          const handleUserInteraction = async () => {
+            try {
+              await video.play();
+              document.removeEventListener('touchstart', handleUserInteraction);
+              document.removeEventListener('click', handleUserInteraction);
+            } catch (e) {
+              console.error('Video play failed after user interaction:', e);
+            }
+          };
+          document.addEventListener('touchstart', handleUserInteraction, { once: true });
+          document.addEventListener('click', handleUserInteraction, { once: true });
+        }
+      };
+
+      startVideo();
+    }
+  }, [cameraStream]);
 
   useEffect(() => {
     if (isNavigating && cameraStream) {
@@ -244,7 +316,11 @@ const MobileApp: React.FC = () => {
       if (wakeLock) {
         wakeLock.release();
       }
-      window.removeEventListener('deviceorientation', handleDeviceOrientation);
+      if (locationWatchId.current) {
+        navigator.geolocation.clearWatch(locationWatchId.current);
+      }
+      window.removeEventListener('deviceorientationabsolute', handleDeviceOrientation);
+      window.removeEventListener('deviceorientation', handleDeviceOrientationFallback);
     };
   }, [isNavigating, cameraStream]);
 
@@ -281,32 +357,9 @@ const MobileApp: React.FC = () => {
 
   return (
     <div className="relative w-full h-screen bg-black overflow-hidden">
-      {/* Camera Feed */}
+      {/* FIXED: Enhanced Camera Feed with better mobile support */}
       <video
-        ref={(video) => {
-          if (video && cameraStream) {
-            video.srcObject = cameraStream;
-            // Force play and ensure video is visible
-            video.play().then(() => {
-              console.log('Video started playing');
-              video.style.display = 'block';
-              video.style.visibility = 'visible';
-            }).catch((error) => {
-              console.error('Video play failed:', error);
-              // Retry play after a short delay
-              setTimeout(() => {
-                video.play().catch(console.error);
-              }, 100);
-            });
-
-            // Force video to maintain aspect ratio and fill screen
-            video.style.width = '100vw';
-            video.style.height = '100vh';
-            video.style.objectFit = 'cover';
-            video.style.display = 'block';
-            video.style.visibility = 'visible';
-          }
-        }}
+        ref={videoRef}
         autoPlay
         muted
         playsInline
@@ -320,27 +373,62 @@ const MobileApp: React.FC = () => {
           height: '100vh',
           objectFit: 'cover',
           display: 'block',
-          visibility: 'visible'
+          visibility: 'visible',
+          backgroundColor: 'black'
+        }}
+        onLoadedMetadata={() => {
+          console.log('Video metadata loaded');
+          if (videoRef.current) {
+            videoRef.current.play().catch(console.error);
+          }
+        }}
+        onCanPlay={() => {
+          console.log('Video can play');
+          if (videoRef.current) {
+            videoRef.current.play().catch(console.error);
+          }
         }}
       />
       
-      {/* AR Overlay */}
-      <div className="absolute inset-0 pointer-events-none">
+      {/* FIXED: AR Overlay with touch-event prevention */}
+      <div 
+        className="absolute inset-0 pointer-events-none"
+        style={{ 
+          touchAction: 'none',
+          userSelect: 'none',
+          webkitUserSelect: 'none',
+          webkitTouchCallout: 'none'
+        }}
+      >
         {/* Navigation Arrow */}
-        {isNavigating && routeData && (
+        {isNavigating && routeData && userLocation && userHeading !== null && (
           <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
             <div
               className="text-6xl text-red-500 drop-shadow-lg animate-pulse"
               style={{
                 transform: `translate(-50%, -50%) rotate(${getArrowRotation()}deg)`,
-                transition: 'transform 0.3s ease-out'
+                transition: 'transform 0.5s ease-out',
+                filter: 'drop-shadow(0 0 10px rgba(239, 68, 68, 0.8))',
+                textShadow: '0 0 10px rgba(0,0,0,0.8)'
               }}
             >
               ↑
             </div>
             <div className="text-center mt-2">
-              <div className="bg-black bg-opacity-70 text-white px-3 py-1 rounded-full text-sm font-semibold backdrop-blur-sm">
+              <div className="bg-black bg-opacity-70 text-white px-3 py-1 rounded-full text-sm font-semibold backdrop-blur-sm border border-white/20">
                 {Math.round(getDistanceToNextWaypoint())}m
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Loading indicator when positioning */}
+        {isNavigating && (!userLocation || userHeading === null) && (
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+            <div className="bg-black bg-opacity-80 text-white px-4 py-2 rounded-lg backdrop-blur-sm text-center">
+              <div className="animate-spin text-2xl mb-2">⚡</div>
+              <div className="text-sm">
+                {!userLocation ? 'Getting location...' : 'Calibrating compass...'}
               </div>
             </div>
           </div>
@@ -349,7 +437,7 @@ const MobileApp: React.FC = () => {
 
       {/* Route Info Panel */}
       {routeData && (
-        <div className="absolute top-4 left-4 right-4 bg-black bg-opacity-80 p-4 rounded-lg backdrop-blur-sm text-white">
+        <div className="absolute top-4 left-4 right-4 bg-black bg-opacity-80 p-4 rounded-lg backdrop-blur-sm text-white pointer-events-auto">
           <h2 className="font-bold text-lg mb-2">AR Navigation</h2>
           <div className="text-sm space-y-1">
             <p><span className="text-gray-400">From:</span> {routeData.waypoints[0]?.name}</p>
@@ -369,64 +457,40 @@ const MobileApp: React.FC = () => {
         </div>
       )}
 
-      {/* Compass */}
+      {/* FIXED: Enhanced Compass with better visibility */}
       {userHeading !== null && (
-        <div className="absolute top-4 right-4 bg-black bg-opacity-80 p-3 rounded-full backdrop-blur-sm text-white text-center">
+        <div className="absolute top-4 right-4 bg-black bg-opacity-80 p-3 rounded-full backdrop-blur-sm text-white text-center border border-white/20 pointer-events-auto">
           <div className="font-bold text-lg">{getCompassDirection()}</div>
           <div className="text-xs text-gray-400">{Math.round(userHeading)}°</div>
         </div>
       )}
       
-      {/* Controls */}
-      <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 flex gap-2 flex-wrap justify-center">
+      {/* FIXED: Controls with proper touch handling */}
+      <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 flex gap-2 flex-wrap justify-center pointer-events-auto">
         <button
           onClick={() => window.history.back()}
-          className="bg-gray-700 bg-opacity-80 text-white px-3 py-2 rounded-full text-sm font-semibold backdrop-blur-sm"
+          className="bg-gray-700 bg-opacity-80 text-white px-3 py-2 rounded-full text-sm font-semibold backdrop-blur-sm border border-white/20 touch-manipulation"
+          style={{ touchAction: 'manipulation' }}
         >
           Back
         </button>
         
         <button
           onClick={() => setIsNavigating(!isNavigating)}
-          className={`px-3 py-2 rounded-full text-sm font-semibold backdrop-blur-sm ${
+          className={`px-3 py-2 rounded-full text-sm font-semibold backdrop-blur-sm border border-white/20 touch-manipulation ${
             isNavigating 
               ? 'bg-red-600 bg-opacity-80 text-white' 
               : 'bg-green-600 bg-opacity-80 text-white'
           }`}
+          style={{ touchAction: 'manipulation' }}
         >
           {isNavigating ? 'Pause' : 'Start'}
-        </button>
-        
-        <button
-          onClick={() => {
-            // Test device orientation
-            console.log('Testing device orientation...');
-            console.log('Current userHeading:', userHeading);
-            console.log('Current userLocation:', userLocation);
-            console.log('Route data:', routeData);
-            
-            // Force simulate a device orientation event
-            const currentHeading = userHeading || 0;
-            const newHeading = (currentHeading + 45) % 360;
-            
-            const mockEvent = {
-              alpha: newHeading,
-              beta: 0,
-              gamma: 0
-            } as DeviceOrientationEvent;
-            
-            handleDeviceOrientation(mockEvent);
-            console.log('Test completed - new heading:', newHeading);
-          }}
-          className="bg-blue-600 bg-opacity-80 text-white px-3 py-2 rounded-full text-sm font-semibold backdrop-blur-sm"
-        >
-          Test
         </button>
       </div>
       
       {/* Instructions */}
       {routeData && routeData.instructions.length > 0 && (
-        <div className="absolute bottom-20 left-4 right-4 bg-black bg-opacity-80 p-3 rounded-lg backdrop-blur-sm text-white text-sm">
+        <div className="absolute bottom-20 left-4 right-4 bg-black bg-opacity-80 p-3 rounded-lg backdrop-blur-sm text-white text-sm pointer-events-auto border border-white/20">
           <p className="font-semibold mb-1">Next:</p>
           <p>{routeData.instructions[0]}</p>
         </div>
