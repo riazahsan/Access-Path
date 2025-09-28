@@ -126,6 +126,23 @@ const MapView: React.FC<MapViewProps> = ({
     }
   }, []);
 
+  // Update origin circle when user location changes
+  useEffect(() => {
+    if (start && map.current && isMapLoaded) {
+      const originSource = map.current.getSource("origin-circle") as mapboxgl.GeoJSONSource;
+      if (originSource) {
+        const originGeoJSON: GeoJSON.FeatureCollection<GeoJSON.Point> = {
+          type: "FeatureCollection",
+          features: [
+            { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: start } },
+          ],
+        };
+        originSource.setData(originGeoJSON);
+        console.log('🎯 Updated origin circle to user location:', start);
+      }
+    }
+  }, [start, isMapLoaded]);
+
   // Listen for route planning events
   useEffect(() => {
     const handleDrawRoute = (event: CustomEvent<{
@@ -390,6 +407,12 @@ const MapView: React.FC<MapViewProps> = ({
         map.current.on("click", (event) => {
           const coords: [number, number] = [event.lngLat.lng, event.lngLat.lat];
 
+          // Clear building markers from planned route
+          clearRouteMarkers();
+
+          // Clear the current route reference since this is a manual click
+          currentRoute.current = null;
+
           const endGeoJSON: GeoJSON.FeatureCollection<GeoJSON.Point> = {
             type: "FeatureCollection",
             features: [
@@ -399,6 +422,17 @@ const MapView: React.FC<MapViewProps> = ({
 
           // Update destination circle
           (map.current!.getSource("destination-circle") as mapboxgl.GeoJSONSource).setData(endGeoJSON);
+
+          // Reset origin circle to user's current location (not the planned route start)
+          if (start) {
+            const originGeoJSON: GeoJSON.FeatureCollection<GeoJSON.Point> = {
+              type: "FeatureCollection",
+              features: [
+                { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: start } },
+              ],
+            };
+            (map.current!.getSource("origin-circle") as mapboxgl.GeoJSONSource).setData(originGeoJSON);
+          }
 
           // Fetch and draw route
           if (start) {
@@ -569,7 +603,29 @@ const MapView: React.FC<MapViewProps> = ({
           borderRadius: "8px",
           zIndex: 1,
         }}
-      ></div>
+      >
+        <div style={{ marginBottom: "15px", padding: "10px", background: "#f8fafc", borderRadius: "6px" }}>
+          <h4 style={{ margin: "0 0 8px 0", fontWeight: "bold", fontSize: "14px" }}>♿ Route Accessibility</h4>
+          <div style={{ fontSize: "12px", lineHeight: "1.4" }}>
+            <div style={{ display: "flex", alignItems: "center", marginBottom: "4px" }}>
+              <div style={{ width: "16px", height: "3px", backgroundColor: "#22c55e", marginRight: "8px", borderRadius: "2px" }}></div>
+              <span>High accessibility (80%+)</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", marginBottom: "4px" }}>
+              <div style={{ width: "16px", height: "3px", backgroundColor: "#f59e0b", marginRight: "8px", borderRadius: "2px" }}></div>
+              <span>Moderate accessibility (50-80%)</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", marginBottom: "4px" }}>
+              <div style={{ width: "16px", height: "3px", backgroundColor: "#ef4444", marginRight: "8px", borderRadius: "2px" }}></div>
+              <span>Limited accessibility (&lt;50%)</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center" }}>
+              <div style={{ width: "16px", height: "3px", backgroundColor: "#3887be", marginRight: "8px", borderRadius: "2px" }}></div>
+              <span>Not optimized</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Loading indicator */}
       {!isMapLoaded && (
