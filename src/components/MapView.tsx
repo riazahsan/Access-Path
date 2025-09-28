@@ -10,13 +10,15 @@ interface MapViewProps {
   selectedRoute?: string;
   filters: AccessibilityFilter;
   onRouteSelect?: (routeId: string) => void;
+  onFiltersChange?: (filters: AccessibilityFilter) => void;
 }
 
 const MapView: React.FC<MapViewProps> = ({ 
   routes, 
   selectedRoute, 
   filters,
-  onRouteSelect 
+  onRouteSelect,
+  onFiltersChange
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -202,21 +204,100 @@ const MapView: React.FC<MapViewProps> = ({
       }
     });
 
-    const layerMappings: Record<string, string[]> = {
-      showAccessible: ['Accessibility Routes', 'Accessible Entrances'],
-      showCurbCuts: ['Curb Cuts'],
-      showParking: ['ADA Parking Spots'],
-      showElevators: ['Elevators']
-    };
 
-    Object.entries(layerMappings).forEach(([filterKey, layerIds]) => {
-      const isVisible = filters[filterKey as keyof AccessibilityFilter];
-      layerIds.forEach(layerId => {
-        if (map.current?.getLayer(layerId)) {
-          map.current.setLayoutProperty(layerId, 'visibility', isVisible ? 'visible' : 'none');
+    // Get all available layers from the Mapbox style
+    const style = map.current.getStyle();
+    if (style && style.layers) {
+      const availableLayers = style.layers.map(layer => layer.id);
+      console.log('Available layers:', availableLayers);
+
+      // Auto-detect accessibility layers by name patterns
+      const detectedLayers = {
+        accessibleEntrances: availableLayers.filter(id => 
+          id.toLowerCase().includes('entrance') || 
+          id.toLowerCase().includes('accessible') ||
+          id.toLowerCase().includes('access')
+        ),
+        curbCuts: availableLayers.filter(id => 
+          id.toLowerCase().includes('curb') ||
+          id.toLowerCase().includes('ramp')
+        ),
+        parking: availableLayers.filter(id => 
+          id.toLowerCase().includes('parking') ||
+          id.toLowerCase().includes('ada')
+        ),
+        elevators: availableLayers.filter(id => 
+          id.toLowerCase().includes('elevator') ||
+          id.toLowerCase().includes('lift')
+        )
+      };
+
+      console.log('Detected accessibility layers:', detectedLayers);
+
+      // Toggle accessible entrances
+      detectedLayers.accessibleEntrances.forEach(layerId => {
+        try {
+          if (map.current?.getLayer(layerId)) {
+            map.current.setLayoutProperty(
+              layerId,
+              'visibility',
+              filters.showPartial ? 'visible' : 'none'
+            );
+            console.log(`✅ Toggled accessible entrances layer "${layerId}": ${filters.showPartial ? 'visible' : 'hidden'}`);
+          }
+        } catch (error) {
+          console.warn(`Error toggling layer "${layerId}":`, error);
         }
       });
-    });
+
+      // Toggle curb cuts
+      detectedLayers.curbCuts.forEach(layerId => {
+        try {
+          if (map.current?.getLayer(layerId)) {
+            map.current.setLayoutProperty(
+              layerId,
+              'visibility',
+              filters.showCurbCuts ? 'visible' : 'none'
+            );
+            console.log(`✅ Toggled curb cuts layer "${layerId}": ${filters.showCurbCuts ? 'visible' : 'hidden'}`);
+          }
+        } catch (error) {
+          console.warn(`Error toggling layer "${layerId}":`, error);
+        }
+      });
+
+      // Toggle parking
+      detectedLayers.parking.forEach(layerId => {
+        try {
+          if (map.current?.getLayer(layerId)) {
+            map.current.setLayoutProperty(
+              layerId,
+              'visibility',
+              filters.showParking ? 'visible' : 'none'
+            );
+            console.log(`✅ Toggled parking layer "${layerId}": ${filters.showParking ? 'visible' : 'hidden'}`);
+          }
+        } catch (error) {
+          console.warn(`Error toggling layer "${layerId}":`, error);
+        }
+      });
+
+      // Toggle elevators
+      detectedLayers.elevators.forEach(layerId => {
+        try {
+          if (map.current?.getLayer(layerId)) {
+            map.current.setLayoutProperty(
+              layerId,
+              'visibility',
+              filters.showElevators ? 'visible' : 'none'
+            );
+            console.log(`✅ Toggled elevators layer "${layerId}": ${filters.showElevators ? 'visible' : 'hidden'}`);
+          }
+        } catch (error) {
+          console.warn(`Error toggling layer "${layerId}":`, error);
+        }
+      });
+    }
 
   }, [filters, isMapLoaded]);
 
