@@ -26,6 +26,7 @@ const MobileApp: React.FC = () => {
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(true);
+  const [wakeLock, setWakeLock] = useState<any>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Parse route data from URL parameters
@@ -103,9 +104,17 @@ const MobileApp: React.FC = () => {
     while (rotation > 180) rotation -= 360;
     while (rotation < -180) rotation += 360;
 
+    // For better visual feedback, if the target is very close (< 5m),
+    // reduce arrow movement to avoid jittery behavior
+    const distance = getDistanceToNextWaypoint();
+    if (distance < 5) {
+      rotation = rotation * 0.5; // Dampen rotation when very close
+    }
+
     console.log(`Arrow Rotation Calculation:`);
-    console.log(`- User Location: ${userLocation.lat}, ${userLocation.lng}`);
-    console.log(`- Target: ${currentWaypoint.lat}, ${currentWaypoint.lng}`);
+    console.log(`- User Location: ${userLocation.lat.toFixed(6)}, ${userLocation.lng.toFixed(6)}`);
+    console.log(`- Target: ${currentWaypoint.lat.toFixed(6)}, ${currentWaypoint.lng.toFixed(6)}`);
+    console.log(`- Distance: ${distance.toFixed(1)}m`);
     console.log(`- Bearing: ${bearing.toFixed(1)}°`);
     console.log(`- User Heading: ${userHeading.toFixed(1)}°`);
     console.log(`- Arrow Rotation: ${rotation.toFixed(1)}°`);
@@ -144,18 +153,30 @@ const MobileApp: React.FC = () => {
         }
       }
 
-      // Then request camera permission
+      // Then request camera permission with mobile-optimized settings
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: 'environment', // Use rear camera for AR navigation
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+          width: { ideal: 1920, min: 640 },
+          height: { ideal: 1080, min: 480 },
+          frameRate: { ideal: 30, min: 15 }
         }
       });
 
       setCameraStream(stream);
       setShowPermissionPrompt(false);
       setIsNavigating(true);
+
+      // Request screen wake lock to keep screen on during navigation
+      try {
+        if ('wakeLock' in navigator) {
+          const wakeLockObj = await (navigator as any).wakeLock.request('screen');
+          setWakeLock(wakeLockObj);
+          console.log('✅ Screen wake lock acquired');
+        }
+      } catch (err) {
+        console.log('⚠️ Wake lock request failed:', err);
+      }
 
       console.log('✅ Camera and orientation access granted');
     } catch (error) {
@@ -165,20 +186,28 @@ const MobileApp: React.FC = () => {
   };
 
   const startNavigation = () => {
-    // Get user location
+    // Get user location with high accuracy
     if (navigator.geolocation) {
       navigator.geolocation.watchPosition(
         (position) => {
-          setUserLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
+          const newLocation = { lat: position.coords.latitude, lng: position.coords.longitude };
+          setUserLocation(newLocation);
+          console.log('Location updated:', newLocation);
         },
         (error) => console.error('Location error:', error),
-        { enableHighAccuracy: true }
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 1000
+        }
       );
     }
 
-    // Get device orientation (permission already requested)
+    // Get device orientation with more frequent updates
     if (window.DeviceOrientationEvent) {
-      window.addEventListener('deviceorientation', handleDeviceOrientation);
+      // Remove any existing listeners first
+      window.removeEventListener('deviceorientation', handleDeviceOrientation);
+      window.addEventListener('deviceorientation', handleDeviceOrientation, { passive: true });
     }
   };
 
@@ -186,8 +215,17 @@ const MobileApp: React.FC = () => {
     if (event.alpha !== null && event.alpha !== undefined) {
       // The alpha value represents the compass heading
       // Convert from 0-360 range where 0° = North
-      setUserHeading(event.alpha);
-      console.log('Device orientation updated:', event.alpha);
+      // For iOS, we may need to adjust for magnetic declination
+      let heading = event.alpha;
+
+      // For iOS devices, alpha might need adjustment
+      if (typeof (window as any).orientation !== 'undefined') {
+        const orientation = (window as any).orientation || 0;
+        heading = (heading + orientation) % 360;
+      }
+
+      setUserHeading(heading);
+      console.log('Device orientation updated:', heading, 'original alpha:', event.alpha);
     }
   };
 
@@ -199,6 +237,9 @@ const MobileApp: React.FC = () => {
     return () => {
       if (cameraStream) {
         cameraStream.getTracks().forEach(track => track.stop());
+      }
+      if (wakeLock) {
+        wakeLock.release();
       }
       window.removeEventListener('deviceorientation', handleDeviceOrientation);
     };
@@ -243,19 +284,25 @@ const MobileApp: React.FC = () => {
           if (video && cameraStream) {
             video.srcObject = cameraStream;
             video.play().catch(console.error);
+
+            // Force video to maintain aspect ratio and fill screen
+            video.style.width = '100vw';
+            video.style.height = '100vh';
+            video.style.objectFit = 'cover';
           }
         }}
         autoPlay
         muted
         playsInline
-        className="absolute inset-0 w-full h-full object-cover z-0"
-        style={{ 
-          position: 'fixed',
+        style={{
+          position: 'absolute',
           top: 0,
           left: 0,
           width: '100vw',
           height: '100vh',
-          objectFit: 'cover'
+          objectFit: 'cover',
+          zIndex: -1,
+          backgroundColor: 'black'
         }}
       />
       
@@ -289,8 +336,17 @@ const MobileApp: React.FC = () => {
           <div className="text-sm space-y-1">
             <p><span className="text-gray-400">From:</span> {routeData.waypoints[0]?.name}</p>
             <p><span className="text-gray-400">To:</span> {routeData.waypoints[1]?.name}</p>
-            <p><span className="text-gray-400">Distance:</span> {Math.round(routeData.distance)}m</p>
-            <p><span className="text-gray-400">Duration:</span> {Math.round(routeData.duration / 60)} min</p>
+            {userLocation ? (
+              <>
+                <p><span className="text-gray-400">Remaining:</span> {Math.round(getDistanceToNextWaypoint())}m</p>
+                <p><span className="text-gray-400">Est. Time:</span> {Math.round(getDistanceToNextWaypoint() / 1000 * 4)} min</p>
+              </>
+            ) : (
+              <>
+                <p><span className="text-gray-400">Distance:</span> {Math.round(routeData.distance)}m</p>
+                <p><span className="text-gray-400">Duration:</span> {Math.round(routeData.duration / 60)} min</p>
+              </>
+            )}
           </div>
         </div>
       )}
