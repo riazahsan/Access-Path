@@ -661,7 +661,7 @@ const MapView: React.FC<MapViewProps> = ({
           position: "absolute",
           margin: "20px",
           width: "25%",
-          top: 0,
+          top: "120px",
           bottom: "20%",
           padding: "20px",
           backgroundColor: "var(--bg-primary)",
@@ -674,38 +674,6 @@ const MapView: React.FC<MapViewProps> = ({
           zIndex: 1,
         }}
       >
-        <div style={{
-          marginBottom: "15px",
-          padding: "10px",
-          background: "var(--bg-secondary)",
-          borderRadius: "6px",
-          border: theme === 'high-contrast' ? "1px solid var(--border-color)" : "none"
-        }}>
-          <h4 style={{
-            margin: "0 0 8px 0",
-            fontWeight: "bold",
-            fontSize: "14px",
-            color: "var(--text-primary)"
-          }}>♿ Route Accessibility</h4>
-          <div style={{ fontSize: "12px", lineHeight: "1.4", color: "var(--text-primary)" }}>
-            <div style={{ display: "flex", alignItems: "center", marginBottom: "4px" }}>
-              <div style={{ width: "16px", height: "3px", backgroundColor: "var(--route-accessible)", marginRight: "8px", borderRadius: "2px" }}></div>
-              <span>High accessibility (80%+)</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", marginBottom: "4px" }}>
-              <div style={{ width: "16px", height: "3px", backgroundColor: "var(--route-moderate)", marginRight: "8px", borderRadius: "2px" }}></div>
-              <span>Moderate accessibility (50-80%)</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", marginBottom: "4px" }}>
-              <div style={{ width: "16px", height: "3px", backgroundColor: "var(--route-limited)", marginRight: "8px", borderRadius: "2px" }}></div>
-              <span>Limited accessibility (&lt;50%)</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center" }}>
-              <div style={{ width: "16px", height: "3px", backgroundColor: "var(--route-default)", marginRight: "8px", borderRadius: "2px" }}></div>
-              <span>Not optimized</span>
-            </div>
-          </div>
-      </div>
       </div>
 
       {/* Loading indicator */}
