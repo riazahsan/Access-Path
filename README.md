@@ -1,6 +1,4 @@
-# Acess Path
-
-devpost link: https://devpost.com/software/1070127/joins/B7FYAGhfxRnuiNes2LZu7Q
+# Access Path
 
 **Project Goal:**  
 Provide a simple, accessible navigation tool for wheelchair users on campus, with real-time AR guidance and notifications for blocked paths.
