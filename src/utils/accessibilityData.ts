@@ -3,11 +3,11 @@
 
 export interface AccessibilityDataCounts {
   accessRoutes: number;
+  accessRoutes2: number;
+  accessibleEntrances: number;
+  accessibilityAisles: number;
   curbCuts: number;
   adaParkingSpaces: number;
-  accessibleEntrances: number;
-  elevators: number;
-  accessAisle: number;
 }
 
 // Mock data counts for now - these should be replaced with actual data loading
@@ -15,12 +15,12 @@ export const getAccessibilityDataCounts = (): AccessibilityDataCounts => {
   // These are placeholder counts - in a real implementation, 
   // you would load and parse the GeoJSON files to get actual counts
   return {
-    accessRoutes: 15,        // Estimated count from accessroutes.geojson
-    curbCuts: 120,           // Estimated count from curbcuts.geojson
-    adaParkingSpaces: 45,    // Estimated count from adaparkingspaces.geojson
-    accessibleEntrances: 85, // Estimated count from accessibleentrances.geojson
-    elevators: 35,           // Estimated count from elevators.geojson
-    accessAisle: 25,         // Estimated count from accessaisle.geojson
+    accessRoutes: 15,        // Estimated count from Accessibility Routes layer
+    accessRoutes2: 8,        // Estimated count from accessroutes2-1zv1wp layer
+    accessibleEntrances: 85, // Estimated count from Accessibile Entrances layer
+    accessibilityAisles: 25, // Estimated count from Accessibility Aisles layer
+    curbCuts: 120,           // Estimated count from Curb Cuts layer
+    adaParkingSpaces: 45,    // Estimated count from ADA Parking Spots layer
   };
 };
 

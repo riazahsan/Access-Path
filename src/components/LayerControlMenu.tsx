@@ -37,18 +37,34 @@ const LayerControlMenu: React.FC<LayerControlMenuProps> = ({
     {
       key: 'showAccessible' as keyof AccessibilityFilter,
       label: 'Accessible Routes',
-      description: 'Fully accessible pathways',
+      description: 'Primary accessible pathways',
       color: 'bg-green-500',
       legendColor: '#22c55e',
       count: dataCounts.accessRoutes
     },
     {
-      key: 'showPartial' as keyof AccessibilityFilter,
+      key: 'showAccessible2' as keyof AccessibilityFilter,
+      label: 'Additional Routes',
+      description: 'Secondary accessible pathways',
+      color: 'bg-emerald-500',
+      legendColor: '#10b981',
+      count: dataCounts.accessRoutes2
+    },
+    {
+      key: 'showEntrances' as keyof AccessibilityFilter,
       label: 'Accessible Entrances',
-      description: 'Accessible building entrances (pink spheres)',
+      description: 'Accessible building entrances',
       color: 'bg-pink-500',
       legendColor: '#ec4899',
       count: dataCounts.accessibleEntrances
+    },
+    {
+      key: 'showAisles' as keyof AccessibilityFilter,
+      label: 'Accessibility Aisles',
+      description: 'Accessible walkway aisles',
+      color: 'bg-indigo-500',
+      legendColor: '#6366f1',
+      count: dataCounts.accessibilityAisles
     },
     {
       key: 'showCurbCuts' as keyof AccessibilityFilter,
@@ -65,14 +81,6 @@ const LayerControlMenu: React.FC<LayerControlMenuProps> = ({
       color: 'bg-purple-500',
       legendColor: '#8b5cf6',
       count: dataCounts.adaParkingSpaces
-    },
-    {
-      key: 'showElevators' as keyof AccessibilityFilter,
-      label: 'Elevators',
-      description: 'Building elevators for accessibility',
-      color: 'bg-orange-500',
-      legendColor: '#f97316',
-      count: dataCounts.elevators
     }
   ];
 

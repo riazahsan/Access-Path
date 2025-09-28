@@ -16,10 +16,11 @@ const Index = () => {
   const [selectedRoute, setSelectedRoute] = useState<string>('');
   const [filters, setFilters] = useState<AccessibilityFilter>({
     showAccessible: true,
-    showPartial: true,
+    showEntrances: true,
+    showAisles: true,
     showCurbCuts: true,
     showParking: true,
-    showElevators: true,
+    showAccessible2: true,
   });
   
   // Route planning state

@@ -73,7 +73,7 @@ export async function getRoute(
     // Update or create route layer with accessibility-aware styling
     const routeColor = optimizedRoute
       ? (optimizedRoute.accessibilityScore > 0.8 ? "#22c55e" : optimizedRoute.accessibilityScore > 0.5 ? "#f59e0b" : "#ef4444")
-      : "#3887be";
+      : "#f59e0b";
 
     if (map.getSource("route")) {
       console.log('🔄 Updating existing route source');

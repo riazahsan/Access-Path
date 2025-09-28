@@ -485,34 +485,44 @@ const MapView: React.FC<MapViewProps> = ({
   }, [mapboxToken, start]); // Only recreate map if token or start location changes
 
 
+  // Debug: Log all available layers when map loads
+  useEffect(() => {
+    if (!map.current || !isMapLoaded) return;
+
+    console.log('🗺️ Available map layers:');
+    const style = map.current.getStyle();
+    if (style.layers) {
+      style.layers.forEach((layer, index) => {
+        console.log(`${index}: ${layer.id} (${layer.type})`);
+      });
+    }
+  }, [isMapLoaded]);
 
   // --- Layer visibility based on filters ---
   useEffect(() => {
     if (!map.current || !isMapLoaded) return;
 
-    const demoLayers: [string, boolean][] = [
-      ['demo-accessible-routes', filters.showAccessible],
-      ['demo-partial-routes', filters.showPartial],
-    ];
-
-    demoLayers.forEach(([layerId, visible]) => {
-      if (map.current!.getLayer(layerId)) {
-        map.current!.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none');
-      }
-    });
-
+    // Exact layer mappings based on actual Mapbox style layers
     const layerMappings: Record<string, string[]> = {
-      showAccessible: ['Accessibility Routes', 'Accessible Entrances'],
+      showAccessible: ['Accessibility Routes'],
+      showEntrances: ['Accessibile Entrances'], // Note: Mapbox style has typo "Accessibile"
+      showAisles: ['Accessibility Aisles'],
       showCurbCuts: ['Curb Cuts'],
       showParking: ['ADA Parking Spots'],
-      showElevators: ['Elevators']
+      showAccessible2: ['accessroutes2-1zv1wp']
     };
 
+    console.log('📋 Layer mappings:', layerMappings);
+
+    // Apply visibility changes
     Object.entries(layerMappings).forEach(([filterKey, layerIds]) => {
       const isVisible = filters[filterKey as keyof AccessibilityFilter];
       layerIds.forEach(layerId => {
         if (map.current?.getLayer(layerId)) {
           map.current.setLayoutProperty(layerId, 'visibility', isVisible ? 'visible' : 'none');
+          console.log(`🔄 Set ${layerId} visibility to ${isVisible ? 'visible' : 'none'}`);
+        } else {
+          console.warn(`⚠️ Layer ${layerId} not found in map`);
         }
       });
     });

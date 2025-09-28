@@ -1,10 +1,11 @@
 // Accessibility filter interface
 export interface AccessibilityFilter {
   showAccessible: boolean;
-  showPartial: boolean;
+  showEntrances: boolean;
+  showAisles: boolean;
   showCurbCuts: boolean;
   showParking: boolean;
-  showElevators: boolean;
+  showAccessible2: boolean;
 }
 
 // Route feature properties
@@ -100,10 +101,11 @@ export interface MapViewState {
 // Filter presets
 export const DEFAULT_FILTERS: AccessibilityFilter = {
   showAccessible: true,
-  showPartial: true,
+  showEntrances: true,
+  showAisles: true,
   showCurbCuts: true,
   showParking: true,
-  showElevators: true,
+  showAccessible2: true,
 };
 
 // Accessibility levels with colors
