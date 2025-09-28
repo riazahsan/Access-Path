@@ -37,18 +37,10 @@ const LayerControlMenu: React.FC<LayerControlMenuProps> = ({
     {
       key: 'showAccessible' as keyof AccessibilityFilter,
       label: 'Accessible Routes',
-      description: 'Primary accessible pathways',
+      description: 'All accessible pathways (primary and secondary)',
       color: 'bg-green-500',
       legendColor: '#22c55e',
-      count: dataCounts.accessRoutes
-    },
-    {
-      key: 'showAccessible2' as keyof AccessibilityFilter,
-      label: 'Additional Routes',
-      description: 'Secondary accessible pathways',
-      color: 'bg-emerald-500',
-      legendColor: '#10b981',
-      count: dataCounts.accessRoutes2
+      count: dataCounts.accessRoutes + dataCounts.accessRoutes2
     },
     {
       key: 'showEntrances' as keyof AccessibilityFilter,

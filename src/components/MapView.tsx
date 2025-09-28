@@ -224,7 +224,14 @@ const MapView: React.FC<MapViewProps> = ({
                     );
                   }
 
-                  instructions.innerHTML = updatedContent;
+                  // Add header to the content
+                  const headerHTML = `
+                    <div style="margin-bottom: 15px; padding: 12px; background: var(--bg-secondary); border-radius: 6px; border: 1px solid var(--border-color);">
+                      <h3 style="margin: 0 0 8px 0; font-weight: bold; font-size: 16px; color: var(--text-primary);">🗺️ Route Instructions</h3>
+                      <p style="margin: 0; font-size: 12px; color: var(--text-secondary); line-height: 1.4;">View route details, directions, and accessibility information for your planned journey.</p>
+                    </div>
+                  `;
+                  instructions.innerHTML = headerHTML + updatedContent;
                 }
               }
             }).catch((error) => {
@@ -322,7 +329,14 @@ const MapView: React.FC<MapViewProps> = ({
                   );
                 }
 
-                instructions.innerHTML = updatedContent;
+                // Add header to the content
+                const headerHTML = `
+                  <div style="margin-bottom: 15px; padding: 12px; background: var(--bg-secondary); border-radius: 6px; border: 1px solid var(--border-color);">
+                    <h3 style="margin: 0 0 8px 0; font-weight: bold; font-size: 16px; color: var(--text-primary);">🗺️ Route Instructions</h3>
+                    <p style="margin: 0; font-size: 12px; color: var(--text-secondary); line-height: 1.4;">View route details, directions, and accessibility information for your planned journey.</p>
+                  </div>
+                `;
+                instructions.innerHTML = headerHTML + updatedContent;
               }
             }
           }).catch((error) => {
@@ -495,6 +509,21 @@ const MapView: React.FC<MapViewProps> = ({
       style.layers.forEach((layer, index) => {
         console.log(`${index}: ${layer.id} (${layer.type})`);
       });
+      
+      // Specifically look for layers that might be the additional routes
+      const possibleAdditionalRouteLayers = style.layers.filter(layer => 
+        layer.id.toLowerCase().includes('accessroutes2') ||
+        layer.id.toLowerCase().includes('additional') ||
+        layer.id.toLowerCase().includes('secondary') ||
+        layer.id.toLowerCase().includes('route2') ||
+        layer.id.toLowerCase().includes('2')
+      );
+      
+      if (possibleAdditionalRouteLayers.length > 0) {
+        console.log('🔍 Possible Additional Routes layers:', possibleAdditionalRouteLayers.map(l => l.id));
+      } else {
+        console.log('⚠️ No obvious Additional Routes layers found');
+      }
     }
   }, [isMapLoaded]);
 
@@ -504,12 +533,12 @@ const MapView: React.FC<MapViewProps> = ({
 
     // Exact layer mappings based on actual Mapbox style layers
     const layerMappings: Record<string, string[]> = {
-      showAccessible: ['Accessibility Routes'],
+      showAccessible: ['Accessibility Routes', 'accessroutes2-1zv1wp', 'Accessibility Routes 2', 'Additional Routes', 'accessroutes2'],
       showEntrances: ['Accessibile Entrances'], // Note: Mapbox style has typo "Accessibile"
       showAisles: ['Accessibility Aisles'],
       showCurbCuts: ['Curb Cuts'],
       showParking: ['ADA Parking Spots'],
-      showAccessible2: ['accessroutes2-1zv1wp']
+      showAccessible2: [] // No longer used - combined into showAccessible
     };
 
     console.log('📋 Layer mappings:', layerMappings);
@@ -517,12 +546,20 @@ const MapView: React.FC<MapViewProps> = ({
     // Apply visibility changes
     Object.entries(layerMappings).forEach(([filterKey, layerIds]) => {
       const isVisible = filters[filterKey as keyof AccessibilityFilter];
+      console.log(`🔧 Processing filter ${filterKey}: ${isVisible ? 'visible' : 'hidden'} for layers:`, layerIds);
+      
       layerIds.forEach(layerId => {
         if (map.current?.getLayer(layerId)) {
           map.current.setLayoutProperty(layerId, 'visibility', isVisible ? 'visible' : 'none');
-          console.log(`🔄 Set ${layerId} visibility to ${isVisible ? 'visible' : 'none'}`);
+          console.log(`✅ Set ${layerId} visibility to ${isVisible ? 'visible' : 'none'}`);
         } else {
-          console.warn(`⚠️ Layer ${layerId} not found in map`);
+          console.warn(`❌ Layer ${layerId} not found in map`);
+          // Debug: Log all available layers
+          if (map.current && map.current.getStyle()) {
+            const allLayers = map.current.getStyle().layers.map(layer => layer.id);
+            console.log(`📋 All available layers:`, allLayers);
+            console.log(`🔍 Looking for layers containing "accessroutes2":`, allLayers.filter(id => id.toLowerCase().includes('accessroutes2')));
+          }
         }
       });
     });
@@ -674,6 +711,36 @@ const MapView: React.FC<MapViewProps> = ({
           zIndex: 1,
         }}
       >
+        <div style={{
+          marginBottom: "15px",
+          padding: "12px",
+          background: "var(--bg-secondary)",
+          borderRadius: "6px",
+          border: theme === 'high-contrast' ? "1px solid var(--border-color)" : "none"
+        }}>
+          <h3 style={{
+            margin: "0 0 8px 0",
+            fontWeight: "bold",
+            fontSize: "16px",
+            color: "var(--text-primary)"
+          }}>🗺️ Route Instructions</h3>
+          <p style={{
+            margin: "0",
+            fontSize: "12px",
+            color: "var(--text-secondary)",
+            lineHeight: "1.4"
+          }}>
+            View route details, directions, and accessibility information for your planned journey.
+          </p>
+        </div>
+        <div style={{ padding: "10px", textAlign: "center" }}>
+          <p style={{ margin: "0", fontSize: "14px", color: "var(--text-primary)" }}>
+            📍 Plan a route by clicking "Plan Route" in the header
+          </p>
+          <p style={{ margin: "10px 0 0 0", fontSize: "12px", color: "var(--text-secondary)" }}>
+            Or click on the map to get directions to another destination
+          </p>
+      </div>
       </div>
 
       {/* Loading indicator */}

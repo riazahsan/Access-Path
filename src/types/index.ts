@@ -5,7 +5,6 @@ export interface AccessibilityFilter {
   showAisles: boolean;
   showCurbCuts: boolean;
   showParking: boolean;
-  showAccessible2: boolean;
 }
 
 // Route feature properties
@@ -105,7 +104,6 @@ export const DEFAULT_FILTERS: AccessibilityFilter = {
   showAisles: true,
   showCurbCuts: true,
   showParking: true,
-  showAccessible2: true,
 };
 
 // Accessibility levels with colors

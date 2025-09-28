@@ -431,6 +431,19 @@
             if (event.alpha !== null && event.alpha !== undefined) {
                 userHeading = event.alpha;
                 console.log('Device orientation updated:', userHeading);
+                
+                // Force update arrow direction immediately
+                if (routeData && userLocation) {
+                    const currentWaypoint = routeData.waypoints[routeData.currentWaypoint];
+                    if (currentWaypoint) {
+                        const bearing = calculateBearing(
+                            userLocation.lat, userLocation.lng,
+                            currentWaypoint.lat, currentWaypoint.lng
+                        );
+                        console.log(`Updated bearing: ${bearing}°, heading: ${event.alpha}°`);
+                    }
+                }
+                
                 updateArrowDirection();
                 updateCompass();
             }

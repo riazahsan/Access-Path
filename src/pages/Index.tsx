@@ -21,7 +21,6 @@ const Index = () => {
     showAisles: true,
     showCurbCuts: true,
     showParking: true,
-    showAccessible2: true,
   });
   
   // Route planning state

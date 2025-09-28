@@ -156,6 +156,10 @@ export async function getRoute(
       }
 
       instructions.innerHTML = `
+        <div style="margin-bottom: 15px; padding: 12px; background: var(--bg-secondary); border-radius: 6px; border: 1px solid var(--border-color);">
+          <h3 style="margin: 0 0 8px 0; font-weight: bold; font-size: 16px; color: var(--text-primary);">🗺️ Route Instructions</h3>
+          <p style="margin: 0; font-size: 12px; color: var(--text-secondary); line-height: 1.4;">View route details, directions, and accessibility information for your planned journey.</p>
+        </div>
         <p id="prompt">📍 Click the map to get directions to another destination</p>
         <p><strong>Trip duration: ${Math.floor(finalDuration / 60)} min 👩‍🦽 </strong></p>
         <p><strong>Distance: ${Math.round(finalDistance)}m</strong></p>

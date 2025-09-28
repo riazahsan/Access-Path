@@ -215,17 +215,20 @@ const MobileApp: React.FC = () => {
     if (event.alpha !== null && event.alpha !== undefined) {
       // The alpha value represents the compass heading
       // Convert from 0-360 range where 0° = North
-      // For iOS, we may need to adjust for magnetic declination
-      let heading = event.alpha;
-
-      // For iOS devices, alpha might need adjustment
-      if (typeof (window as any).orientation !== 'undefined') {
-        const orientation = (window as any).orientation || 0;
-        heading = (heading + orientation) % 360;
+      setUserHeading(event.alpha);
+      console.log('Device orientation updated:', event.alpha);
+      
+      // Force update arrow direction immediately
+      if (routeData && userLocation) {
+        const currentWaypoint = routeData.waypoints[routeData.currentWaypoint];
+        if (currentWaypoint) {
+          const bearing = calculateBearing(
+            userLocation.lat, userLocation.lng,
+            currentWaypoint.lat, currentWaypoint.lng
+          );
+          console.log(`Updated bearing: ${bearing}°, heading: ${event.alpha}°`);
+        }
       }
-
-      setUserHeading(heading);
-      console.log('Device orientation updated:', heading, 'original alpha:', event.alpha);
     }
   };
 
@@ -283,26 +286,41 @@ const MobileApp: React.FC = () => {
         ref={(video) => {
           if (video && cameraStream) {
             video.srcObject = cameraStream;
-            video.play().catch(console.error);
+            // Force play and ensure video is visible
+            video.play().then(() => {
+              console.log('Video started playing');
+              video.style.display = 'block';
+              video.style.visibility = 'visible';
+            }).catch((error) => {
+              console.error('Video play failed:', error);
+              // Retry play after a short delay
+              setTimeout(() => {
+                video.play().catch(console.error);
+              }, 100);
+            });
 
             // Force video to maintain aspect ratio and fill screen
             video.style.width = '100vw';
             video.style.height = '100vh';
             video.style.objectFit = 'cover';
+            video.style.display = 'block';
+            video.style.visibility = 'visible';
           }
         }}
         autoPlay
         muted
         playsInline
-        style={{
-          position: 'absolute',
+        webkit-playsinline="true"
+        className="absolute inset-0 w-full h-full object-cover z-0"
+        style={{ 
+          position: 'fixed',
           top: 0,
           left: 0,
           width: '100vw',
           height: '100vh',
           objectFit: 'cover',
-          zIndex: -1,
-          backgroundColor: 'black'
+          display: 'block',
+          visibility: 'visible'
         }}
       />
       
