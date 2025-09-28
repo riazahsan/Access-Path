@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AR Navigation - Access Path</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #000;
+            color: #fff;
+            overflow: hidden;
+            height: 100vh;
+            position: fixed;
+            width: 100%;
+            touch-action: none;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        html {
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+        }
+        
+        #camera-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+        }
+        
+        #video {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            z-index: 0;
+        }
+        
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+        
+        #arrow {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 4rem;
+            color: #ef4444;
+            text-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        #distance-indicator {
+            position: absolute;
+            top: 60%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            backdrop-filter: blur(10px);
+        }
+        
+        #info-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            font-size: 0.9rem;
+        }
+        
+        #compass {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            backdrop-filter: blur(10px);
+        }
+        
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .control-btn {
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            transition: background 0.3s;
+        }
+        
+        .control-btn:hover {
+            background: rgba(0, 0, 0, 0.9);
+        }
+        
+        .control-btn.secondary {
+            background: rgba(55, 65, 81, 0.8);
+        }
+        
+        #permission-prompt {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            padding: 20px;
+        }
+        
+        .permission-btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .permission-btn:hover {
+            background: #2563eb;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        .text-center {
+            text-align: center;
+        }
+        
+        .mb-4 {
+            margin-bottom: 1rem;
+        }
+        
+        .text-6xl {
+            font-size: 3.75rem;
+        }
+        
+        .text-2xl {
+            font-size: 1.5rem;
+        }
+        
+        .font-bold {
+            font-weight: 700;
+        }
+        
+        .text-gray-300 {
+            color: #d1d5db;
+        }
+        
+        .text-gray-400 {
+            color: #9ca3af;
+        }
+    </style>
+</head>
+<body>
+    <div id="camera-container">
+        <video id="video" autoplay muted playsinline></video>
+        
+        <div id="overlay">
+            <div id="arrow">↑</div>
+            <div id="distance-indicator">0m</div>
+        </div>
+        
+        <div id="info-panel">
+            <h2 style="margin-bottom: 10px;">AR Navigation</h2>
+            <div id="route-info">
+                <p><span class="text-gray-400">From:</span> <span id="start-location">Loading...</span></p>
+                <p><span class="text-gray-400">To:</span> <span id="end-location">Loading...</span></p>
+                <p><span class="text-gray-400">Distance:</span> <span id="total-distance">0m</span></p>
+                <p><span class="text-gray-400">Duration:</span> <span id="total-duration">0 min</span></p>
+            </div>
+        </div>
+        
+        <div id="compass">N</div>
+        
+        <div id="controls">
+            <button class="control-btn secondary" onclick="toggleCompass()">Compass</button>
+            <button class="control-btn" onclick="toggleRoute()">Route Info</button>
+            <button class="control-btn" onclick="testOrientation()">Test</button>
+            <button class="control-btn secondary" onclick="goBack()">Back</button>
+        </div>
+        
+        <div id="permission-prompt">
+            <div class="text-center">
+                <div class="text-6xl mb-4">🎥</div>
+                <h1 class="text-2xl font-bold mb-4">Camera Access Required</h1>
+                <p class="text-gray-300 mb-6">We need camera access to provide AR navigation guidance.</p>
+                <button class="permission-btn" onclick="requestCameraPermission()">
+                    Allow Camera Access
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let cameraStream = null;
+        let userLocation = null;
+        let userHeading = null;
+        let isNavigating = false;
+        let routeData = null;
+        let currentRoute = null;
+
+        // Initialize when page loads
+        function init() {
+            // Parse route data from URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const routeParam = urlParams.get('route');
+            
+            if (routeParam) {
+                try {
+                    routeData = JSON.parse(decodeURIComponent(routeParam));
+                    currentRoute = {
+                        waypoints: routeData.waypoints,
+                        currentWaypoint: 0
+                    };
+                    updateRouteInfo();
+                    console.log('Route data loaded:', routeData);
+                } catch (error) {
+                    console.error('Failed to parse route data:', error);
+                    showError('Invalid route data');
+                }
+            } else {
+                showError('No route data provided');
+            }
+        }
+
+        function updateRouteInfo() {
+            if (!routeData) return;
+            
+            document.getElementById('start-location').textContent = routeData.waypoints[0]?.name || 'Unknown';
+            document.getElementById('end-location').textContent = routeData.waypoints[1]?.name || 'Unknown';
+            document.getElementById('total-distance').textContent = Math.round(routeData.distance) + 'm';
+            document.getElementById('total-duration').textContent = Math.round(routeData.duration / 60) + ' min';
+        }
+
+        function showError(message) {
+            document.getElementById('info-panel').innerHTML = `
+                <h2 style="color: #ef4444; margin-bottom: 10px;">Error</h2>
+                <p>${message}</p>
+            `;
+        }
+
+        async function requestCameraPermission() {
+            try {
+                // First request device orientation permission (iOS 13+)
+                if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    const orientationPermission = await DeviceOrientationEvent.requestPermission();
+                    if (orientationPermission !== 'granted') {
+                        alert('Device orientation permission is required for AR navigation');
+                        return;
+                    }
+                }
+
+                // Then request camera permission
+                cameraStream = await navigator.mediaDevices.getUserMedia({
+                  video: {
+                    facingMode: 'environment', // Use rear camera for AR navigation
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                  }
+                });
+
+                const video = document.getElementById('video');
+                video.srcObject = cameraStream;
+
+                document.getElementById('permission-prompt').classList.add('hidden');
+                isNavigating = true;
+
+                // Start navigation updates
+                startNavigation();
+
+                console.log('✅ Camera and orientation access granted');
+            } catch (error) {
+                console.error('❌ Permission denied:', error);
+                alert('Camera and motion access are required for AR navigation');
+            }
+        }
+
+        function startNavigation() {
+            // Get user location
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(
+                    (position) => {
+                        userLocation = { lat: position.coords.latitude, lng: position.coords.longitude };
+                        updateNavigation();
+                    },
+                    (error) => console.error('Location error:', error),
+                    { enableHighAccuracy: true }
+                );
+            }
+            
+            // Get device orientation (permission already requested)
+            if (window.DeviceOrientationEvent) {
+                window.addEventListener('deviceorientation', handleDeviceOrientation);
+            }
+            
+            // Simulate navigation updates
+            setInterval(updateNavigation, 1000);
+        }
+        
+        function updateNavigation() {
+            if (!isNavigating || !currentRoute) return;
+            
+            updateArrowDirection();
+            updateCompass();
+        }
+        
+        function updateArrowDirection() {
+            if (!userLocation || userHeading === null || !isNavigating) {
+                console.log('Missing data for arrow direction:', {
+                    userLocation: !!userLocation,
+                    userHeading: userHeading,
+                    isNavigating: isNavigating
+                });
+                return;
+            }
+            
+            const currentWaypoint = currentRoute.waypoints[currentRoute.currentWaypoint];
+            if (!currentWaypoint) {
+                console.log('No current waypoint');
+                return;
+            }
+            
+            // Calculate bearing to next waypoint
+            const bearing = calculateBearing(
+                userLocation.lat, userLocation.lng,
+                currentWaypoint.lat, currentWaypoint.lng
+            );
+            
+            // Calculate rotation for arrow
+            let rotation = bearing - userHeading;
+            
+            // Normalize rotation to be between -180 and 180 degrees
+            while (rotation > 180) rotation -= 360;
+            while (rotation < -180) rotation += 360;
+            
+            console.log(`Arrow Direction Update:`);
+            console.log(`- User Location: ${userLocation.lat}, ${userLocation.lng}`);
+            console.log(`- Target: ${currentWaypoint.lat}, ${currentWaypoint.lng}`);
+            console.log(`- Bearing: ${bearing.toFixed(1)}°`);
+            console.log(`- User Heading: ${userHeading.toFixed(1)}°`);
+            console.log(`- Arrow Rotation: ${rotation.toFixed(1)}°`);
+            
+            const arrow = document.getElementById('arrow');
+            if (arrow) {
+                arrow.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+                console.log('Arrow rotated to:', rotation + 'deg');
+            }
+            
+            // Update distance
+            const distance = calculateDistance(
+                userLocation.lat, userLocation.lng,
+                currentWaypoint.lat, currentWaypoint.lng
+            );
+            
+            const distanceElement = document.getElementById('distance-indicator');
+            if (distanceElement) {
+                distanceElement.textContent = `${Math.round(distance)}m`;
+            }
+        }
+        
+        function updateCompass() {
+            if (userHeading === null) return;
+            
+            const compass = document.getElementById('compass');
+            const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+            const index = Math.round(userHeading / 45) % 8;
+            compass.textContent = directions[index];
+        }
+
+        function handleDeviceOrientation(event) {
+            if (event.alpha !== null && event.alpha !== undefined) {
+                userHeading = event.alpha;
+                console.log('Device orientation updated:', userHeading);
+                updateArrowDirection();
+                updateCompass();
+            }
+        }
+
+        // Utility functions
+        function calculateBearing(lat1, lng1, lat2, lng2) {
+            // Convert to radians
+            const lat1Rad = lat1 * Math.PI / 180;
+            const lat2Rad = lat2 * Math.PI / 180;
+            const dLng = (lng2 - lng1) * Math.PI / 180;
+
+            // Calculate bearing using the correct formula
+            const y = Math.sin(dLng) * Math.cos(lat2Rad);
+            const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) -
+                     Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLng);
+
+            let bearing = Math.atan2(y, x) * 180 / Math.PI;
+
+            // Convert to compass bearing (0° = North, clockwise)
+            bearing = (bearing + 360) % 360;
+
+            console.log(`Bearing calculation: lat1=${lat1}, lng1=${lng1}, lat2=${lat2}, lng2=${lng2}, bearing=${bearing}`);
+            return bearing;
+        }
+        
+        function calculateDistance(lat1, lng1, lat2, lng2) {
+            const R = 6371000; // Earth's radius in meters
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLng = (lng2 - lng1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                     Math.sin(dLng/2) * Math.sin(dLng/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        // UI functions
+        function toggleCompass() {
+            const compass = document.getElementById('compass');
+            compass.style.display = compass.style.display === 'none' ? 'flex' : 'none';
+        }
+        
+        function toggleRoute() {
+            const infoPanel = document.getElementById('info-panel');
+            infoPanel.style.display = infoPanel.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        function goBack() {
+            if (window.history.length > 1) {
+                window.history.back();
+            } else {
+                window.close();
+            }
+        }
+        
+        function testOrientation() {
+            console.log('Testing device orientation...');
+            console.log('Current userHeading:', userHeading);
+            console.log('Current userLocation:', userLocation);
+            console.log('Route data:', routeData);
+            
+            // Force simulate a device orientation event
+            if (userHeading === null) {
+                userHeading = 0; // Start with North
+            }
+            
+            // Rotate heading by 45 degrees
+            userHeading = (userHeading + 45) % 360;
+            console.log('New simulated heading:', userHeading);
+            
+            // Manually trigger the orientation handler
+            const mockEvent = {
+                alpha: userHeading,
+                beta: 0,
+                gamma: 0
+            };
+            
+            handleDeviceOrientation(mockEvent);
+            updateArrowDirection();
+            updateCompass();
+            
+            console.log('Test completed - heading:', userHeading);
+        }
+        
+        // Prevent scrolling and improve orientation handling
+        document.addEventListener('touchmove', function(e) {
+            e.preventDefault();
+        }, { passive: false });
+        
+        document.addEventListener('scroll', function(e) {
+            e.preventDefault();
+            window.scrollTo(0, 0);
+        }, { passive: false });
+        
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
