@@ -46,15 +46,47 @@ export interface RouteCollection {
 export interface Building {
   id: string;
   name: string;
+  shortName?: string;
   coordinates: [number, number];
-  accessibility: {
+  accessibility?: {
     hasElevator: boolean;
     hasAccessibleEntrance: boolean;
     hasAccessibleParking: boolean;
     hasAccessibleRestrooms: boolean;
     wheelchairAccessible: boolean;
   };
+  accessibilityRating?: number;
+  amenities?: string[];
+  entrances?: {
+    accessible: boolean;
+    coordinates: [number, number];
+    description: string;
+  }[];
   description?: string;
+}
+
+// Route API request interface
+export interface RouteRequest {
+  startBuilding: Building;
+  endBuilding: Building;
+  preferences?: {
+    avoidStairs: boolean;
+    preferRamps: boolean;
+    maxDistance?: number;
+  };
+}
+
+// Route API response interface
+export interface RouteResponse {
+  success: boolean;
+  route?: {
+    coordinates: [number, number][];
+    distance: number;
+    duration: number;
+    accessibility: 'accessible' | 'partial' | 'not-accessible';
+    instructions?: string[];
+  };
+  error?: string;
 }
 
 // Map view state

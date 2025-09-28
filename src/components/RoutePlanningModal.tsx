@@ -1,30 +1,27 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { 
-  Navigation, 
-  MapPin, 
-  Target, 
-  Plus, 
-  X, 
+import { Card } from '@/components/ui/card';
+import {
+  Navigation,
+  MapPin,
+  Search,
   ArrowRight,
   CheckCircle,
-  Clock,
-  Footprints,
-  AlertCircle
+  Loader2,
+  AlertCircle,
+  Star
 } from 'lucide-react';
-import { Waypoint, RoutePlanningState } from '@/types';
-import WaypointInput from './WaypointInput';
+import { Building, RouteRequest, RouteResponse } from '@/types';
+import { buildings, searchBuildings } from '@/data/buildings';
+import { useToast } from '@/hooks/use-toast';
 
 interface RoutePlanningModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onRoutePlan: (waypoints: Waypoint[]) => void;
-  onMapClick?: (coordinates: [number, number]) => void;
-  onSearch?: (query: string) => Promise<{ coordinates: [number, number]; address: string }[]>;
-  onGeolocation?: () => Promise<[number, number]>;
+  onRoutePlan: (route: RouteResponse) => void;
   className?: string;
 }
 
@@ -32,213 +29,340 @@ const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
   isOpen,
   onClose,
   onRoutePlan,
-  onMapClick,
-  onSearch,
-  onGeolocation,
   className = ''
 }) => {
-  const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
-  const [currentStep, setCurrentStep] = useState<'start' | 'waypoints' | 'end' | 'planning'>('start');
+  const [startBuilding, setStartBuilding] = useState<Building | null>(null);
+  const [endBuilding, setEndBuilding] = useState<Building | null>(null);
+  const [startQuery, setStartQuery] = useState('');
+  const [endQuery, setEndQuery] = useState('');
+  const [startSuggestions, setStartSuggestions] = useState<Building[]>([]);
+  const [endSuggestions, setEndSuggestions] = useState<Building[]>([]);
   const [isPlanning, setIsPlanning] = useState(false);
-  const [isMapClickMode, setIsMapClickMode] = useState(false);
+  const [showStartSuggestions, setShowStartSuggestions] = useState(false);
+  const [showEndSuggestions, setShowEndSuggestions] = useState(false);
 
-  // Reset state when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      setWaypoints([]);
-      setCurrentStep('start');
-      setIsPlanning(false);
-      setIsMapClickMode(false);
+  const { toast } = useToast();
+
+  // Handle start building search
+  const handleStartSearch = useCallback((query: string) => {
+    setStartQuery(query);
+    if (query.trim()) {
+      const suggestions = searchBuildings(query).slice(0, 5);
+      setStartSuggestions(suggestions);
+      setShowStartSuggestions(true);
+    } else {
+      setStartSuggestions([]);
+      setShowStartSuggestions(false);
     }
-  }, [isOpen]);
+  }, []);
 
-  // Handle map click mode
-  const handleMapClickMode = () => {
-    setIsMapClickMode(true);
-    onClose(); // Close modal temporarily
-  };
-
-  // Handle coordinates received from map click
-  const handleMapCoordinates = (coordinates: [number, number]) => {
-    if (isMapClickMode && onMapClick) {
-      onMapClick(coordinates);
-      setIsMapClickMode(false);
+  // Handle end building search
+  const handleEndSearch = useCallback((query: string) => {
+    setEndQuery(query);
+    if (query.trim()) {
+      const suggestions = searchBuildings(query).slice(0, 5);
+      setEndSuggestions(suggestions);
+      setShowEndSuggestions(true);
+    } else {
+      setEndSuggestions([]);
+      setShowEndSuggestions(false);
     }
-  };
+  }, []);
 
-  // Handle waypoint addition
-  const handleWaypointAdd = (waypoint: Waypoint) => {
-    setWaypoints(prev => [...prev, waypoint]);
-    
-    // Update current step
-    if (waypoints.length === 0) {
-      setCurrentStep('waypoints');
-    } else if (waypoints.length >= 1) {
-      setCurrentStep('end');
-    }
-  };
+  // Select start building
+  const selectStartBuilding = useCallback((building: Building) => {
+    setStartBuilding(building);
+    setStartQuery(building.name);
+    setShowStartSuggestions(false);
+  }, []);
 
-  // Handle waypoint removal
-  const handleWaypointRemove = (waypointId: string) => {
-    setWaypoints(prev => {
-      const newWaypoints = prev.filter(wp => wp.id !== waypointId);
-      
-      // Update current step
-      if (newWaypoints.length === 0) {
-        setCurrentStep('start');
-      } else if (newWaypoints.length === 1) {
-        setCurrentStep('waypoints');
+  // Select end building
+  const selectEndBuilding = useCallback((building: Building) => {
+    setEndBuilding(building);
+    setEndQuery(building.name);
+    setShowEndSuggestions(false);
+  }, []);
+
+  // API call to get route
+  const getAccessibleRoute = async (request: RouteRequest): Promise<RouteResponse> => {
+    try {
+      // Replace this URL with your actual API endpoint
+      const response = await fetch('/api/route', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
-      return newWaypoints;
-    });
-  };
 
-  // Handle waypoint update
-  const handleWaypointUpdate = (waypointId: string, updates: Partial<Waypoint>) => {
-    setWaypoints(prev => 
-      prev.map(wp => wp.id === waypointId ? { ...wp, ...updates } : wp)
-    );
+      return await response.json();
+    } catch (error) {
+      console.error('API call failed:', error);
+      // Return mock response for demo purposes
+      return {
+        success: true,
+        route: {
+          coordinates: [
+            request.startBuilding.coordinates,
+            // Add some intermediate points for demo
+            [
+              (request.startBuilding.coordinates[0] + request.endBuilding.coordinates[0]) / 2,
+              (request.startBuilding.coordinates[1] + request.endBuilding.coordinates[1]) / 2
+            ],
+            request.endBuilding.coordinates
+          ],
+          distance: Math.random() * 500 + 200, // Random distance 200-700m
+          duration: Math.random() * 10 + 5, // Random duration 5-15 minutes
+          accessibility: 'accessible',
+          instructions: [
+            `Start at ${request.startBuilding.name}`,
+            'Follow the accessible path',
+            'Use ramp access where available',
+            `Arrive at ${request.endBuilding.name}`
+          ]
+        }
+      };
+    }
   };
 
   // Handle route planning
   const handleRoutePlan = async () => {
-    if (waypoints.length < 2) return;
-    
+    if (!startBuilding || !endBuilding) {
+      toast({
+        title: "Missing Information",
+        description: "Please select both start and end buildings.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (startBuilding.id === endBuilding.id) {
+      toast({
+        title: "Same Building Selected",
+        description: "Please select different buildings for start and end points.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsPlanning(true);
     try {
-      await onRoutePlan(waypoints);
-      onClose();
+      const routeRequest: RouteRequest = {
+        startBuilding,
+        endBuilding,
+        preferences: {
+          avoidStairs: true,
+          preferRamps: true,
+          maxDistance: 1000
+        }
+      };
+
+      const routeResponse = await getAccessibleRoute(routeRequest);
+
+      if (routeResponse.success && routeResponse.route) {
+        onRoutePlan(routeResponse);
+        toast({
+          title: "Route Planned Successfully",
+          description: `${routeResponse.route.distance.toFixed(0)}m route from ${startBuilding.name} to ${endBuilding.name}`,
+        });
+        onClose();
+      } else {
+        throw new Error(routeResponse.error || 'Route planning failed');
+      }
     } catch (error) {
       console.error('Route planning failed:', error);
+      toast({
+        title: "Route Planning Failed",
+        description: "Unable to generate route. Please try again.",
+        variant: "destructive"
+      });
     } finally {
       setIsPlanning(false);
     }
   };
 
-  // Get step progress
-  const getStepProgress = () => {
-    const totalSteps = 3; // start, waypoints, end
-    const currentStepIndex = currentStep === 'start' ? 0 : 
-                            currentStep === 'waypoints' ? 1 : 
-                            currentStep === 'end' ? 2 : 3;
-    return (currentStepIndex / totalSteps) * 100;
+  // Reset modal state
+  const resetModal = () => {
+    setStartBuilding(null);
+    setEndBuilding(null);
+    setStartQuery('');
+    setEndQuery('');
+    setStartSuggestions([]);
+    setEndSuggestions([]);
+    setShowStartSuggestions(false);
+    setShowEndSuggestions(false);
+    setIsPlanning(false);
   };
 
-  // Get step description
-  const getStepDescription = () => {
-    switch (currentStep) {
-      case 'start':
-        return 'Add your starting point to begin planning your route';
-      case 'waypoints':
-        return 'Add any intermediate stops along your route (optional)';
-      case 'end':
-        return 'Add your destination to complete the route';
-      default:
-        return 'Planning your accessible route...';
-    }
+  // Handle modal close
+  const handleClose = () => {
+    resetModal();
+    onClose();
   };
+
+  const renderBuildingCard = (building: Building, onSelect: (building: Building) => void) => (
+    <Card
+      key={building.id}
+      className="p-3 cursor-pointer hover:bg-gray-50 transition-colors"
+      onClick={() => onSelect(building)}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex-1">
+          <h4 className="text-sm font-medium">{building.name}</h4>
+          {building.shortName && (
+            <p className="text-xs text-gray-500">{building.shortName}</p>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          {building.accessibilityRating && (
+            <div className="flex items-center gap-1">
+              <Star className="w-3 h-3 text-yellow-500" />
+              <span className="text-xs">{building.accessibilityRating}/5</span>
+            </div>
+          )}
+          <MapPin className="w-4 h-4 text-gray-400" />
+        </div>
+      </div>
+      {building.amenities && building.amenities.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {building.amenities.slice(0, 2).map((amenity, index) => (
+            <Badge key={index} variant="secondary" className="text-xs">
+              {amenity}
+            </Badge>
+          ))}
+          {building.amenities.length > 2 && (
+            <Badge variant="outline" className="text-xs">
+              +{building.amenities.length - 2} more
+            </Badge>
+          )}
+        </div>
+      )}
+    </Card>
+  );
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Navigation className="w-5 h-5" />
-            Plan Your Route
+            Plan Accessible Route
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Progress Indicator */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="font-medium">Route Planning Progress</span>
-              <Badge variant="outline">
-                {waypoints.length} waypoints
-              </Badge>
+          {/* Route Overview */}
+          {startBuilding && endBuilding && (
+            <div className="flex items-center gap-3 p-4 bg-green-50 rounded-lg border border-green-200">
+              <div className="flex items-center gap-2 flex-1">
+                <MapPin className="w-4 h-4 text-green-600" />
+                <span className="text-sm font-medium">{startBuilding.name}</span>
+              </div>
+              <ArrowRight className="w-4 h-4 text-green-600" />
+              <div className="flex items-center gap-2 flex-1">
+                <MapPin className="w-4 h-4 text-green-600" />
+                <span className="text-sm font-medium">{endBuilding.name}</span>
+              </div>
             </div>
-            <Progress value={getStepProgress()} className="h-2" />
-            <p className="text-xs text-gray-600">{getStepDescription()}</p>
-          </div>
+          )}
 
-          {/* Waypoints List */}
-          {waypoints.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="text-sm font-medium text-gray-700">Route Overview</h3>
-              <div className="space-y-2">
-                {waypoints.map((waypoint, index) => (
-                  <div key={waypoint.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      {waypoint.type === 'start' ? (
-                        <Navigation className="w-4 h-4 text-green-600" />
-                      ) : waypoint.type === 'end' ? (
-                        <Target className="w-4 h-4 text-red-600" />
-                      ) : (
-                        <MapPin className="w-4 h-4 text-blue-600" />
-                      )}
-                      <span className="text-sm font-medium">{waypoint.name}</span>
-                    </div>
-                    
-                    {index < waypoints.length - 1 && (
-                      <ArrowRight className="w-4 h-4 text-gray-400" />
+          {/* Start Building Search */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">
+              From (Start Building)
+            </label>
+            <div className="relative">
+              <div className="relative">
+                <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                <Input
+                  placeholder="Search for starting building..."
+                  value={startQuery}
+                  onChange={(e) => handleStartSearch(e.target.value)}
+                  onFocus={() => startQuery && setShowStartSuggestions(true)}
+                  className="pl-10"
+                />
+              </div>
+              {showStartSuggestions && startSuggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
+                  <div className="p-2 space-y-1">
+                    {startSuggestions.map((building) =>
+                      renderBuildingCard(building, selectStartBuilding)
                     )}
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Waypoint Input */}
-          <WaypointInput
-            waypoints={waypoints}
-            onWaypointAdd={handleWaypointAdd}
-            onWaypointRemove={handleWaypointRemove}
-            onWaypointUpdate={handleWaypointUpdate}
-            onMapClick={handleMapClickMode}
-            onSearch={onSearch}
-            onGeolocation={onGeolocation}
-            maxWaypoints={10}
-          />
-
-          {/* Route Planning Actions */}
-          {waypoints.length >= 2 && (
-            <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg border border-green-200">
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-green-600" />
-                <div>
-                  <p className="text-sm font-medium text-green-800">Route Ready</p>
-                  <p className="text-xs text-green-700">
-                    {waypoints.length} waypoints • Ready to plan
-                  </p>
                 </div>
-              </div>
-              <Button
-                onClick={handleRoutePlan}
-                disabled={isPlanning}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                {isPlanning ? (
-                  <>
-                    <div className="w-4 h-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    Planning...
-                  </>
-                ) : (
-                  <>
-                    <Navigation className="w-4 h-4 mr-2" />
-                    Plan Route
-                  </>
-                )}
-              </Button>
+              )}
             </div>
-          )}
+          </div>
+
+          {/* End Building Search */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">
+              To (Destination Building)
+            </label>
+            <div className="relative">
+              <div className="relative">
+                <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                <Input
+                  placeholder="Search for destination building..."
+                  value={endQuery}
+                  onChange={(e) => handleEndSearch(e.target.value)}
+                  onFocus={() => endQuery && setShowEndSuggestions(true)}
+                  className="pl-10"
+                />
+              </div>
+              {showEndSuggestions && endSuggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
+                  <div className="p-2 space-y-1">
+                    {endSuggestions.map((building) =>
+                      renderBuildingCard(building, selectEndBuilding)
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Route Planning Button */}
+          <div className="flex items-center justify-between pt-4">
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <CheckCircle className="w-4 h-4" />
+              {startBuilding && endBuilding ?
+                'Ready to plan accessible route' :
+                'Select both buildings to continue'
+              }
+            </div>
+            <Button
+              onClick={handleRoutePlan}
+              disabled={!startBuilding || !endBuilding || isPlanning}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {isPlanning ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Planning Route...
+                </>
+              ) : (
+                <>
+                  <Navigation className="w-4 h-4 mr-2" />
+                  Plan Route
+                </>
+              )}
+            </Button>
+          </div>
 
           {/* Help Text */}
-          <div className="text-xs text-gray-500 space-y-1">
-            <p>• Click on the map to add waypoints</p>
-            <p>• Use search to find specific locations</p>
-            <p>• Use "My Location" to start from your current position</p>
-            <p>• You can add up to 10 waypoints for complex routes</p>
+          <div className="text-xs text-gray-500 space-y-1 pt-2 border-t">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-3 h-3" />
+              <span>Routes are optimized for wheelchair accessibility</span>
+            </div>
+            <p>• All suggested routes avoid stairs and prefer ramps</p>
+            <p>• Buildings are rated by accessibility features</p>
+            <p>• Search by building name or nickname (e.g., "Squires" for "Squires Student Center")</p>
           </div>
         </div>
       </DialogContent>

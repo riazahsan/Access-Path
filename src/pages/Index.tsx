@@ -5,7 +5,7 @@ import Header from '@/components/Header';
 import RoutePlanningModal from '@/components/RoutePlanningModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { AccessibilityFilter, Waypoint } from '@/types';
+import { AccessibilityFilter, Waypoint, RouteResponse } from '@/types';
 import { demoRoutes } from '@/data/demoRoutes';
 import { useToast } from '@/hooks/use-toast';
 import { Plus } from 'lucide-react';
@@ -57,55 +57,32 @@ const Index = () => {
     setIsRoutePlanningOpen(false);
   }, []);
 
-  const handleRoutePlan = useCallback(async (waypoints: Waypoint[]) => {
-    setWaypoints(waypoints);
-    toast({
-      title: "Route Planned",
-      description: `Route planned with ${waypoints.length} waypoints`,
-    });
+  const handleRoutePlan = useCallback(async (routeResponse: RouteResponse) => {
+    if (routeResponse.success && routeResponse.route) {
+      // Convert route response to waypoints for compatibility
+      const newWaypoints: Waypoint[] = routeResponse.route.coordinates.map((coord, index) => ({
+        id: `route-point-${index}`,
+        name: index === 0 ? 'Start' : index === routeResponse.route!.coordinates.length - 1 ? 'End' : `Point ${index}`,
+        coordinates: coord,
+        type: index === 0 ? 'start' : index === routeResponse.route!.coordinates.length - 1 ? 'end' : 'waypoint',
+        timestamp: new Date()
+      }));
+
+      setWaypoints(newWaypoints);
+      toast({
+        title: "Route Planned Successfully",
+        description: `${routeResponse.route.distance.toFixed(0)}m accessible route planned (${routeResponse.route.duration.toFixed(0)} min walk)`,
+      });
+    } else {
+      toast({
+        title: "Route Planning Failed",
+        description: routeResponse.error || "Unable to generate route",
+        variant: "destructive"
+      });
+    }
     setIsRoutePlanningOpen(false);
   }, [toast]);
 
-  const handleSearch = useCallback(async (query: string) => {
-    // Mock search implementation
-    const mockResults = [
-      {
-        coordinates: [-80.4201, 37.2296] as [number, number],
-        address: 'Newman Library, Virginia Tech'
-      },
-      {
-        coordinates: [-80.4170, 37.2270] as [number, number],
-        address: 'Squires Student Center, Virginia Tech'
-      },
-      {
-        coordinates: [-80.4195, 37.2285] as [number, number],
-        address: 'Owens Food Court, Virginia Tech'
-      }
-    ];
-    
-    return mockResults.filter(result => 
-      result.address.toLowerCase().includes(query.toLowerCase())
-    );
-  }, []);
-
-  const handleGeolocation = useCallback(async (): Promise<[number, number]> => {
-    return new Promise((resolve, reject) => {
-      if (!navigator.geolocation) {
-        reject(new Error('Geolocation not supported'));
-        return;
-      }
-      
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          resolve([position.coords.longitude, position.coords.latitude]);
-        },
-        (error) => {
-          reject(error);
-        },
-        { enableHighAccuracy: true }
-      );
-    });
-  }, []);
 
   return (
     <div className="relative w-full h-screen bg-background overflow-hidden">
@@ -146,8 +123,6 @@ const Index = () => {
         isOpen={isRoutePlanningOpen}
         onClose={handleRoutePlanningClose}
         onRoutePlan={handleRoutePlan}
-        onSearch={handleSearch}
-        onGeolocation={handleGeolocation}
       />
 
       {/* Info Dialog */}
