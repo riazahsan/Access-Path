@@ -6,7 +6,6 @@ import RoutePlanningModal from '@/components/RoutePlanningModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { AccessibilityFilter, Waypoint, RouteResponse } from '@/types';
-import { demoRoutes } from '@/data/demoRoutes';
 import { useToast } from '@/hooks/use-toast';
 import { Plus } from 'lucide-react';
 
@@ -28,13 +27,10 @@ const Index = () => {
 
   const handleRouteSelect = useCallback((routeId: string) => {
     setSelectedRoute(routeId);
-    const route = demoRoutes.features.find(f => f.properties.id === routeId);
-    if (route) {
-      toast({
-        title: "Route Selected",
-        description: `${route.properties.name} - ${route.properties.estimatedTime} min walk`,
-      });
-    }
+    toast({
+      title: "Route Selected",
+      description: "Route has been selected",
+    });
   }, [toast]);
 
   const handleFiltersChange = useCallback((newFilters: AccessibilityFilter) => {
@@ -94,7 +90,7 @@ const Index = () => {
       <div className="relative w-full h-screen pt-16">
         {/* Map view */}
         <MapView
-          routes={demoRoutes}
+          routes={{ type: 'FeatureCollection', features: [] }}
           selectedRoute={selectedRoute}
           filters={filters}
           onRouteSelect={handleRouteSelect}
@@ -105,7 +101,6 @@ const Index = () => {
         <LayerControlMenu
           filters={filters}
           onFiltersChange={handleFiltersChange}
-          routeCount={demoRoutes.features.length}
         />
 
         {/* Plan Route Button */}

@@ -69,115 +69,38 @@ const MapView: React.FC<MapViewProps> = ({
         ];
         map.current.setMaxBounds(bounds);
 
-        // --- Origin Circle (constant) ---
-        map.current.addSource("origin-circle", {
-          type: "geojson",
-          data: {
-            type: "FeatureCollection",
-            features: [
-              {
-                type: "Feature",
-                properties: {},
-                geometry: { type: "Point", coordinates: start },
-              },
-            ],
-          },
-        });
+        // --- Current Location Pin (green) ---
+        const currentLocationMarker = new mapboxgl.Marker({
+          color: '#22c55e',
+          scale: 1.2
+        })
+          .setLngLat(start)
+          .addTo(map.current);
 
-        map.current.addLayer({
-          id: "origin-circle",
-          type: "circle",
-          source: "origin-circle",
-          paint: { "circle-radius": 10, "circle-color": "#4ce05b" },
-        });
-
-        // --- Destination Circle (initially empty) ---
-        map.current.addSource("destination-circle", {
-          type: "geojson",
-          data: { type: "FeatureCollection", features: [] },
-        });
-
-        map.current.addLayer({
-          id: "destination-circle",
-          type: "circle",
-          source: "destination-circle",
-          paint: { "circle-radius": 10, "circle-color": "#f30" },
-        });
+        // --- Destination Pin (initially empty, will be created on click) ---
+        let destinationMarker: mapboxgl.Marker | null = null;
 
         // --- Map click handler to set destination and route ---
         map.current.on("click", (event) => {
           const coords: [number, number] = [event.lngLat.lng, event.lngLat.lat];
 
-          const endGeoJSON: GeoJSON.FeatureCollection<GeoJSON.Point> = {
-            type: "FeatureCollection",
-            features: [
-              { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: coords } },
-            ],
-          };
+          // Remove existing destination marker if it exists
+          if (destinationMarker) {
+            destinationMarker.remove();
+          }
 
-          // Update destination circle
-          (map.current!.getSource("destination-circle") as mapboxgl.GeoJSONSource).setData(endGeoJSON);
+          // Create new red pin marker for destination
+          destinationMarker = new mapboxgl.Marker({
+            color: '#ef4444',
+            scale: 1.2
+          })
+            .setLngLat(coords)
+            .addTo(map.current);
 
           // Fetch and draw route
           getRoute(map.current!, start, coords);
         });
 
-        // --- Demo Routes ---
-        if (routes?.features?.length > 0) {
-          map.current.addSource('demo-routes', { type: 'geojson', data: routes });
-
-          map.current.addLayer({
-            id: 'demo-accessible-routes',
-            type: 'line',
-            source: 'demo-routes',
-            filter: ['==', ['get', 'accessibility'], 'accessible'],
-            paint: {
-              'line-color': '#22c55e',
-              'line-width': ['case', ['==', ['get', 'id'], selectedRoute || ''], 6, 4],
-              'line-opacity': 0.8
-            }
-          });
-
-          map.current.addLayer({
-            id: 'demo-partial-routes',
-            type: 'line',
-            source: 'demo-routes',
-            filter: ['==', ['get', 'accessibility'], 'partial'],
-            paint: {
-              'line-color': '#f59e0b',
-              'line-width': ['case', ['==', ['get', 'id'], selectedRoute || ''], 6, 4],
-              'line-opacity': 0.8,
-              'line-dasharray': [2, 2]
-            }
-          });
-
-          routes.features.forEach(feature => {
-            const coords = feature.geometry.coordinates[0];
-            new mapboxgl.Marker({ color: '#22c55e', scale: 0.8 })
-              .setLngLat(coords as [number, number])
-              .setPopup(
-                new mapboxgl.Popup({ offset: 25 }).setHTML(`
-                  <div style="padding: 8px;">
-                    <h3 style="margin:0 0 5px 0; font-size:14px; font-weight:600;">${feature.properties.name}</h3>
-                    <p style="margin:0; font-size:12px; color:#666;">${feature.properties.estimatedTime} min walk</p>
-                    <p style="margin:5px 0 0 0; font-size:12px;">Accessibility: <span style="font-weight:500;">${feature.properties.accessibility}</span></p>
-                  </div>
-                `)
-              )
-              .addTo(map.current!);
-          });
-
-          map.current.on('click', 'demo-accessible-routes', e => {
-            if (e.features?.[0]?.properties?.id && onRouteSelect) {
-              onRouteSelect(e.features[0].properties.id);
-            }
-          });
-          map.current.on('click', 'demo-partial-routes', e => {
-            if (e.features?.[0]?.properties?.id && onRouteSelect) {
-              onRouteSelect(e.features[0].properties.id);
-            }
-          });
-        }
       });
 
       map.current.on('error', e => console.error('Mapbox error:', e));
@@ -194,18 +117,6 @@ const MapView: React.FC<MapViewProps> = ({
     if (!map.current || !isMapLoaded) return;
 
     console.log('🔄 Updating layer visibility with filters:', filters);
-
-    const demoLayers: [string, boolean][] = [
-      ['demo-accessible-routes', filters.showAccessible],
-      ['demo-partial-routes', filters.showPartial],
-    ];
-
-    demoLayers.forEach(([layerId, visible]) => {
-      if (map.current!.getLayer(layerId)) {
-        map.current!.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none');
-        console.log(`✅ Toggled demo layer "${layerId}": ${visible ? 'visible' : 'hidden'}`);
-      }
-    });
 
 
     // Get all available layers from the Mapbox style

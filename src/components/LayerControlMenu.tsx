@@ -40,7 +40,7 @@ const LayerControlMenu: React.FC<LayerControlMenuProps> = ({
       description: 'Fully accessible pathways',
       color: 'bg-green-500',
       legendColor: '#22c55e',
-      count: dataCounts.accessRoutes + routeCount
+      count: dataCounts.accessRoutes
     },
     {
       key: 'showPartial' as keyof AccessibilityFilter,
