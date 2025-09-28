@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import MapView from '@/components/MapView';
-import RouteControls from '@/components/RouteControls';
+import LayerControlMenu from '@/components/LayerControlMenu';
 import Header from '@/components/Header';
 import RoutePlanningModal from '@/components/RoutePlanningModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -120,10 +120,11 @@ const Index = () => {
           selectedRoute={selectedRoute}
           filters={filters}
           onRouteSelect={handleRouteSelect}
+          onFiltersChange={handleFiltersChange}
         />
         
-        {/* Route controls overlay */}
-        <RouteControls
+        {/* Layer control menu */}
+        <LayerControlMenu
           filters={filters}
           onFiltersChange={handleFiltersChange}
           routeCount={demoRoutes.features.length}
