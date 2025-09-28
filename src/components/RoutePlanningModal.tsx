@@ -21,7 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 interface RoutePlanningModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onRoutePlan: (route: RouteResponse) => void;
+  onRoutePlan: (startBuilding: Building, endBuilding: Building) => void;
   className?: string;
 }
 
@@ -83,51 +83,6 @@ const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
     setShowEndSuggestions(false);
   }, []);
 
-  // API call to get route
-  const getAccessibleRoute = async (request: RouteRequest): Promise<RouteResponse> => {
-    try {
-      // Replace this URL with your actual API endpoint
-      const response = await fetch('/api/route', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(request),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('API call failed:', error);
-      // Return mock response for demo purposes
-      return {
-        success: true,
-        route: {
-          coordinates: [
-            request.startBuilding.coordinates,
-            // Add some intermediate points for demo
-            [
-              (request.startBuilding.coordinates[0] + request.endBuilding.coordinates[0]) / 2,
-              (request.startBuilding.coordinates[1] + request.endBuilding.coordinates[1]) / 2
-            ],
-            request.endBuilding.coordinates
-          ],
-          distance: Math.random() * 500 + 200, // Random distance 200-700m
-          duration: Math.random() * 10 + 5, // Random duration 5-15 minutes
-          accessibility: 'accessible',
-          instructions: [
-            `Start at ${request.startBuilding.name}`,
-            'Follow the accessible path',
-            'Use ramp access where available',
-            `Arrive at ${request.endBuilding.name}`
-          ]
-        }
-      };
-    }
-  };
 
   // Handle route planning
   const handleRoutePlan = async () => {
@@ -151,28 +106,18 @@ const RoutePlanningModal: React.FC<RoutePlanningModalProps> = ({
 
     setIsPlanning(true);
     try {
-      const routeRequest: RouteRequest = {
-        startBuilding,
-        endBuilding,
-        preferences: {
-          avoidStairs: true,
-          preferRamps: true,
-          maxDistance: 1000
-        }
-      };
+      console.log('🏢 RoutePlanningModal: Planning route between:', {
+        start: startBuilding,
+        end: endBuilding
+      });
 
-      const routeResponse = await getAccessibleRoute(routeRequest);
-
-      if (routeResponse.success && routeResponse.route) {
-        onRoutePlan(routeResponse);
-        toast({
-          title: "Route Planned Successfully",
-          description: `${routeResponse.route.distance.toFixed(0)}m route from ${startBuilding.name} to ${endBuilding.name}`,
-        });
-        onClose();
-      } else {
-        throw new Error(routeResponse.error || 'Route planning failed');
-      }
+      // Pass buildings to parent component for route generation
+      onRoutePlan(startBuilding, endBuilding);
+      toast({
+        title: "Route Planning Started",
+        description: `Planning accessible route from ${startBuilding.name} to ${endBuilding.name}`,
+      });
+      onClose();
     } catch (error) {
       console.error('Route planning failed:', error);
       toast({

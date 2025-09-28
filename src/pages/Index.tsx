@@ -5,7 +5,7 @@ import Header from '@/components/Header';
 import RoutePlanningModal from '@/components/RoutePlanningModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { AccessibilityFilter, Waypoint, RouteResponse } from '@/types';
+import { AccessibilityFilter, Waypoint, Building } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { Plus } from 'lucide-react';
 
@@ -22,6 +22,12 @@ const Index = () => {
   // Route planning state
   const [isRoutePlanningOpen, setIsRoutePlanningOpen] = useState(false);
   const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
+  const [plannedRoute, setPlannedRoute] = useState<{
+    start: [number, number];
+    end: [number, number];
+    startName: string;
+    endName: string;
+  } | null>(null);
   
   const { toast } = useToast();
 
@@ -54,26 +60,52 @@ const Index = () => {
     setIsRoutePlanningOpen(false);
   }, []);
 
-  const handleRoutePlan = useCallback(async (routeResponse: RouteResponse) => {
-    if (routeResponse.success && routeResponse.route) {
-      // Convert route response to waypoints for compatibility
-      const newWaypoints: Waypoint[] = routeResponse.route.coordinates.map((coord, index) => ({
-        id: `route-point-${index}`,
-        name: index === 0 ? 'Start' : index === routeResponse.route!.coordinates.length - 1 ? 'End' : `Point ${index}`,
-        coordinates: coord,
-        type: index === 0 ? 'start' : index === routeResponse.route!.coordinates.length - 1 ? 'end' : 'waypoint',
+  const handleRoutePlan = useCallback(async (startBuilding: Building, endBuilding: Building) => {
+    try {
+      // Create waypoints for the selected buildings
+      const startWaypoint: Waypoint = {
+        id: 'start',
+        name: startBuilding.name,
+        coordinates: startBuilding.coordinates,
+        type: 'start',
         timestamp: new Date()
+      };
+
+      const endWaypoint: Waypoint = {
+        id: 'end',
+        name: endBuilding.name,
+        coordinates: endBuilding.coordinates,
+        type: 'end',
+        timestamp: new Date()
+      };
+
+      setWaypoints([startWaypoint, endWaypoint]);
+
+      // Set the planned route state which will be passed to MapView
+      const routeData = {
+        start: startBuilding.coordinates,
+        end: endBuilding.coordinates,
+        startName: startBuilding.name,
+        endName: endBuilding.name
+      };
+
+      console.log('🚀 Setting planned route state:', routeData);
+      setPlannedRoute(routeData);
+
+      // Also dispatch the event as backup
+      window.dispatchEvent(new CustomEvent('drawRoute', {
+        detail: routeData
       }));
 
-      setWaypoints(newWaypoints);
       toast({
-        title: "Route Planned Successfully",
-        description: `${routeResponse.route.distance.toFixed(0)}m accessible route planned (${routeResponse.route.duration.toFixed(0)} min walk)`,
+        title: "Route Planning Complete",
+        description: `Route from ${startBuilding.name} to ${endBuilding.name} will be displayed on the map`,
       });
-    } else {
+    } catch (error) {
+      console.error('Route planning failed:', error);
       toast({
         title: "Route Planning Failed",
-        description: routeResponse.error || "Unable to generate route",
+        description: "Unable to generate route. Please try again.",
         variant: "destructive"
       });
     }
@@ -95,6 +127,7 @@ const Index = () => {
           filters={filters}
           onRouteSelect={handleRouteSelect}
           onFiltersChange={handleFiltersChange}
+          plannedRoute={plannedRoute}
         />
         
         {/* Layer control menu */}

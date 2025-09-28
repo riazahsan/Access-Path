@@ -39,17 +39,33 @@ export async function getRoute(
 
     // Update or create route layer
     if (map.getSource("route")) {
+      console.log('🔄 Updating existing route source');
       (map.getSource("route") as mapboxgl.GeoJSONSource).setData(geojson);
     } else {
+      console.log('➕ Creating new route source and layer');
       map.addSource("route", { type: "geojson", data: geojson });
 
       map.addLayer({
         id: "route",
         type: "line",
         source: "route",
-        layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#3887be", "line-width": 5, "line-opacity": 0.75 },
+        layout: {
+          "line-join": "round",
+          "line-cap": "round",
+          "visibility": "visible"
+        },
+        paint: {
+          "line-color": "#3887be",
+          "line-width": 6,
+          "line-opacity": 0.9
+        },
       });
+    }
+
+    // Ensure route layer is visible and on top
+    if (map.getLayer("route")) {
+      map.setLayoutProperty("route", "visibility", "visible");
+      console.log('✅ Route layer visibility set to visible');
     }
 
     // --- NEW: add turn instructions to sidebar ---

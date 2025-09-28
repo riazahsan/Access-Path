@@ -10,16 +10,30 @@ interface MapViewProps {
   selectedRoute?: string;
   filters: AccessibilityFilter;
   onRouteSelect?: (routeId: string) => void;
+  plannedRoute?: {
+    start: [number, number];
+    end: [number, number];
+    startName: string;
+    endName: string;
+  } | null;
 }
 
-const MapView: React.FC<MapViewProps> = ({ 
-  routes, 
-  selectedRoute, 
+const MapView: React.FC<MapViewProps> = ({
+  routes,
+  selectedRoute,
   filters,
-  onRouteSelect 
+  onRouteSelect,
+  plannedRoute
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
+  const routeMarkers = useRef<mapboxgl.Marker[]>([]);
+  const currentRoute = useRef<{
+    start: [number, number];
+    end: [number, number];
+    startName: string;
+    endName: string;
+  } | null>(null);
 
   const [mapboxToken] = useState<string>(
     "pk.eyJ1Ijoic2FtaXJraGF0dGFrIiwiYSI6ImNtZzJoZHNhNzB5czEyanEyY2RmbXdtM3kifQ.2xIoUu6wrMN5ALJbue0cEg"
@@ -28,6 +42,68 @@ const MapView: React.FC<MapViewProps> = ({
 
   // Start location (dynamic from geolocation)
   const [start, setStart] = useState<[number, number] | null>(null);
+
+  // Function to clear existing route markers
+  const clearRouteMarkers = () => {
+    routeMarkers.current.forEach(marker => marker.remove());
+    routeMarkers.current = [];
+  };
+
+  // Function to add persistent route markers
+  const addRouteMarkers = (startCoord: [number, number], endCoord: [number, number], startName: string, endName: string) => {
+    // Clear existing markers first
+    clearRouteMarkers();
+
+    if (!map.current) return;
+
+    try {
+      const startMarker = new mapboxgl.Marker({
+        color: '#4ce05b',
+        scale: 1.2,
+        draggable: false
+      })
+        .setLngLat(startCoord)
+        .setPopup(
+          new mapboxgl.Popup({
+            offset: 25,
+            closeButton: false,
+            closeOnClick: false
+          }).setHTML(`
+            <div style="padding: 8px; text-align: center;">
+              <h3 style="margin:0 0 5px 0; font-size:14px; font-weight:600; color: #059669;">📍 Start</h3>
+              <p style="margin:0; font-size:12px; color:#666;">${startName}</p>
+            </div>
+          `)
+        )
+        .addTo(map.current);
+
+      const endMarker = new mapboxgl.Marker({
+        color: '#f30',
+        scale: 1.2,
+        draggable: false
+      })
+        .setLngLat(endCoord)
+        .setPopup(
+          new mapboxgl.Popup({
+            offset: 25,
+            closeButton: false,
+            closeOnClick: false
+          }).setHTML(`
+            <div style="padding: 8px; text-align: center;">
+              <h3 style="margin:0 0 5px 0; font-size:14px; font-weight:600; color: #dc2626;">🎯 Destination</h3>
+              <p style="margin:0; font-size:12px; color:#666;">${endName}</p>
+            </div>
+          `)
+        )
+        .addTo(map.current);
+
+      // Store references to prevent removal
+      routeMarkers.current = [startMarker, endMarker];
+      console.log('✅ Added persistent route markers');
+    } catch (error) {
+      console.error('❌ Error adding route markers:', error);
+    }
+  };
 
   // Get user’s location on mount
   useEffect(() => {
@@ -49,6 +125,193 @@ const MapView: React.FC<MapViewProps> = ({
       setStart([-80.423710, 37.225825]);
     }
   }, []);
+
+  // Listen for route planning events
+  useEffect(() => {
+    const handleDrawRoute = (event: CustomEvent<{
+      start: [number, number];
+      end: [number, number];
+      startName: string;
+      endName: string;
+    }>) => {
+      console.log('📍 MapView received route event:', event.detail);
+      const { start: startCoord, end: endCoord, startName, endName } = event.detail;
+
+      if (map.current && startCoord && endCoord && isMapLoaded) {
+        console.log('🗺️ Map is ready, drawing route...');
+
+        setTimeout(() => {
+          if (!map.current) return;
+
+          try {
+            // Update destination circle to show the end point
+            const endGeoJSON: GeoJSON.FeatureCollection<GeoJSON.Point> = {
+              type: "FeatureCollection",
+              features: [
+                { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: endCoord } },
+              ],
+            };
+
+            const destinationSource = map.current.getSource("destination-circle") as mapboxgl.GeoJSONSource;
+            if (destinationSource) {
+              destinationSource.setData(endGeoJSON);
+            }
+
+            // Update origin circle to show the start point
+            const startGeoJSON: GeoJSON.FeatureCollection<GeoJSON.Point> = {
+              type: "FeatureCollection",
+              features: [
+                { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: startCoord } },
+              ],
+            };
+
+            const originSource = map.current.getSource("origin-circle") as mapboxgl.GeoJSONSource;
+            if (originSource) {
+              originSource.setData(startGeoJSON);
+            }
+          } catch (error) {
+            console.error('❌ Error updating sources in event handler:', error);
+          }
+
+          // Add persistent building markers
+          addRouteMarkers(startCoord, endCoord, startName, endName);
+
+          // Use the existing getRoute function to draw the route and update instructions
+          try {
+            getRoute(map.current, startCoord, endCoord).then((result) => {
+              if (result) {
+                // Update the instructions panel with building names and accessibility info
+                const instructions = document.getElementById("instructions");
+                if (instructions) {
+                  const duration = Math.floor(result.duration / 60);
+                  const distance = Math.round(result.distance);
+
+                  // Find the trip duration paragraph and update the prompt
+                  let updatedContent = instructions.innerHTML;
+                  updatedContent = updatedContent.replace(
+                    '📍 Click the map to get directions to another destination',
+                    `🏢 Accessible route planned from <strong>${startName}</strong> to <strong>${endName}</strong>`
+                  );
+
+                  // Add accessibility note if not already present
+                  if (!updatedContent.includes('♿')) {
+                    updatedContent = updatedContent.replace(
+                      `<p><strong>Trip duration: ${duration} min 👩‍🦽 </strong></p>`,
+                      `<p><strong>Trip duration: ${duration} min 👩‍🦽 | Distance: ${distance}m</strong></p>
+                       <p style="color: #059669; font-size: 0.9em;">♿ This route is optimized for wheelchair accessibility</p>`
+                    );
+                  }
+
+                  instructions.innerHTML = updatedContent;
+                }
+              }
+            }).catch((error) => {
+              console.error('❌ getRoute failed in event handler:', error);
+            });
+          } catch (error) {
+            console.error('❌ Error calling getRoute in event handler:', error);
+          }
+        }, 500); // Wait 500ms for map to be fully ready
+      }
+    };
+
+    console.log('🎧 MapView: Setting up drawRoute event listener');
+    window.addEventListener('drawRoute', handleDrawRoute as EventListener);
+    return () => {
+      console.log('🗑️ MapView: Cleaning up drawRoute event listener');
+      window.removeEventListener('drawRoute', handleDrawRoute as EventListener);
+    };
+  }, []);
+
+  // Watch for plannedRoute prop changes
+  useEffect(() => {
+    if (plannedRoute && map.current && isMapLoaded) {
+      console.log('🎯 MapView: Received plannedRoute prop:', plannedRoute);
+      console.log('🎯 Map loaded status:', isMapLoaded);
+
+      const { start: startCoord, end: endCoord, startName, endName } = plannedRoute;
+
+      // Store the current route for potential restoration
+      currentRoute.current = plannedRoute;
+
+      // Wait a small amount to ensure map is fully ready
+      setTimeout(() => {
+        if (!map.current) return;
+
+        try {
+          // Update destination circle to show the end point
+          const endGeoJSON: GeoJSON.FeatureCollection<GeoJSON.Point> = {
+            type: "FeatureCollection",
+            features: [
+              { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: endCoord } },
+            ],
+          };
+
+          const destinationSource = map.current.getSource("destination-circle") as mapboxgl.GeoJSONSource;
+          if (destinationSource) {
+            destinationSource.setData(endGeoJSON);
+            console.log('✅ Updated destination circle');
+          }
+
+          // Update origin circle to show the start point
+          const startGeoJSON: GeoJSON.FeatureCollection<GeoJSON.Point> = {
+            type: "FeatureCollection",
+            features: [
+              { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: startCoord } },
+            ],
+          };
+
+          const originSource = map.current.getSource("origin-circle") as mapboxgl.GeoJSONSource;
+          if (originSource) {
+            originSource.setData(startGeoJSON);
+            console.log('✅ Updated origin circle');
+          }
+        } catch (error) {
+          console.error('❌ Error updating map sources:', error);
+        }
+
+        // Add persistent building markers
+        addRouteMarkers(startCoord, endCoord, startName, endName);
+
+        // Use the existing getRoute function to draw the route and update instructions
+        try {
+          getRoute(map.current, startCoord, endCoord).then((result) => {
+            if (result) {
+              console.log('✅ Route drawn successfully:', result);
+              // Update the instructions panel with building names and accessibility info
+              const instructions = document.getElementById("instructions");
+              if (instructions) {
+                const duration = Math.floor(result.duration / 60);
+                const distance = Math.round(result.distance);
+
+                // Find the trip duration paragraph and update the prompt
+                let updatedContent = instructions.innerHTML;
+                updatedContent = updatedContent.replace(
+                  '📍 Click the map to get directions to another destination',
+                  `🏢 Accessible route planned from <strong>${startName}</strong> to <strong>${endName}</strong>`
+                );
+
+                // Add accessibility note if not already present
+                if (!updatedContent.includes('♿')) {
+                  updatedContent = updatedContent.replace(
+                    `<p><strong>Trip duration: ${duration} min 👩‍🦽 </strong></p>`,
+                    `<p><strong>Trip duration: ${duration} min 👩‍🦽 | Distance: ${distance}m</strong></p>
+                     <p style="color: #059669; font-size: 0.9em;">♿ This route is optimized for wheelchair accessibility</p>`
+                  );
+                }
+
+                instructions.innerHTML = updatedContent;
+              }
+            }
+          }).catch((error) => {
+            console.error('❌ Route drawing failed:', error);
+          });
+        } catch (error) {
+          console.error('❌ Error calling getRoute:', error);
+        }
+      }, 500); // Wait 500ms for map to be fully ready
+    }
+  }, [plannedRoute, isMapLoaded]);
 
   useEffect(() => {
     if (!mapContainer.current || !mapboxToken || !start) return;
@@ -143,61 +406,18 @@ const MapView: React.FC<MapViewProps> = ({
           }
         });
 
-        // --- Demo Routes (unchanged) ---
-        if (routes?.features?.length > 0) {
-          map.current.addSource('demo-routes', { type: 'geojson', data: routes });
+        console.log('🗺️ Map initialization complete');
 
-          map.current.addLayer({
-            id: 'demo-accessible-routes',
-            type: 'line',
-            source: 'demo-routes',
-            filter: ['==', ['get', 'accessibility'], 'accessible'],
-            paint: {
-              'line-color': '#22c55e',
-              'line-width': ['case', ['==', ['get', 'id'], selectedRoute || ''], 6, 4],
-              'line-opacity': 0.8
+        // Restore any existing route after map initialization
+        if (currentRoute.current) {
+          console.log('🔄 Restoring route after map initialization');
+          setTimeout(() => {
+            if (currentRoute.current && map.current) {
+              const { start: startCoord, end: endCoord, startName, endName } = currentRoute.current;
+              addRouteMarkers(startCoord, endCoord, startName, endName);
+              getRoute(map.current, startCoord, endCoord);
             }
-          });
-
-          map.current.addLayer({
-            id: 'demo-partial-routes',
-            type: 'line',
-            source: 'demo-routes',
-            filter: ['==', ['get', 'accessibility'], 'partial'],
-            paint: {
-              'line-color': '#f59e0b',
-              'line-width': ['case', ['==', ['get', 'id'], selectedRoute || ''], 6, 4],
-              'line-opacity': 0.8,
-              'line-dasharray': [2, 2]
-            }
-          });
-
-          routes.features.forEach(feature => {
-            const coords = feature.geometry.coordinates[0];
-            new mapboxgl.Marker({ color: '#22c55e', scale: 0.8 })
-              .setLngLat(coords as [number, number])
-              .setPopup(
-                new mapboxgl.Popup({ offset: 25 }).setHTML(`
-                  <div style="padding: 8px;">
-                    <h3 style="margin:0 0 5px 0; font-size:14px; font-weight:600;">${feature.properties.name}</h3>
-                    <p style="margin:0; font-size:12px; color:#666;">${feature.properties.estimatedTime} min walk</p>
-                    <p style="margin:5px 0 0 0; font-size:12px;">Accessibility: <span style="font-weight:500;">${feature.properties.accessibility}</span></p>
-                  </div>
-                `)
-              )
-              .addTo(map.current!);
-          });
-
-          map.current.on('click', 'demo-accessible-routes', e => {
-            if (e.features?.[0]?.properties?.id && onRouteSelect) {
-              onRouteSelect(e.features[0].properties.id);
-            }
-          });
-          map.current.on('click', 'demo-partial-routes', e => {
-            if (e.features?.[0]?.properties?.id && onRouteSelect) {
-              onRouteSelect(e.features[0].properties.id);
-            }
-          });
+          }, 1000);
         }
       });
 
@@ -207,8 +427,92 @@ const MapView: React.FC<MapViewProps> = ({
       console.error('Mapbox initialization error:', error);
     }
 
-    return () => map.current?.remove();
-  }, [mapboxToken, routes, selectedRoute, onRouteSelect, start]);
+    return () => {
+      clearRouteMarkers();
+      map.current?.remove();
+    };
+  }, [mapboxToken, start]); // Only recreate map if token or start location changes
+
+  // Separate effect for demo routes that doesn't recreate the map
+  useEffect(() => {
+    if (!map.current || !isMapLoaded || !routes?.features?.length) return;
+
+    console.log('🎭 Adding demo routes to existing map');
+
+    // Remove existing demo routes if they exist
+    if (map.current.getLayer('demo-accessible-routes')) {
+      map.current.removeLayer('demo-accessible-routes');
+    }
+    if (map.current.getLayer('demo-partial-routes')) {
+      map.current.removeLayer('demo-partial-routes');
+    }
+    if (map.current.getSource('demo-routes')) {
+      map.current.removeSource('demo-routes');
+    }
+
+    try {
+      // Add demo routes
+      map.current.addSource('demo-routes', { type: 'geojson', data: routes });
+
+      map.current.addLayer({
+        id: 'demo-accessible-routes',
+        type: 'line',
+        source: 'demo-routes',
+        filter: ['==', ['get', 'accessibility'], 'accessible'],
+        paint: {
+          'line-color': '#22c55e',
+          'line-width': ['case', ['==', ['get', 'id'], selectedRoute || ''], 6, 4],
+          'line-opacity': 0.8
+        }
+      });
+
+      map.current.addLayer({
+        id: 'demo-partial-routes',
+        type: 'line',
+        source: 'demo-routes',
+        filter: ['==', ['get', 'accessibility'], 'partial'],
+        paint: {
+          'line-color': '#f59e0b',
+          'line-width': ['case', ['==', ['get', 'id'], selectedRoute || ''], 6, 4],
+          'line-opacity': 0.8,
+          'line-dasharray': [2, 2]
+        }
+      });
+
+      routes.features.forEach(feature => {
+        const coords = feature.geometry.coordinates[0];
+        new mapboxgl.Marker({ color: '#22c55e', scale: 0.8 })
+          .setLngLat(coords as [number, number])
+          .setPopup(
+            new mapboxgl.Popup({ offset: 25 }).setHTML(`
+              <div style="padding: 8px;">
+                <h3 style="margin:0 0 5px 0; font-size:14px; font-weight:600;">${feature.properties.name}</h3>
+                <p style="margin:0; font-size:12px; color:#666;">${feature.properties.estimatedTime} min walk</p>
+                <p style="margin:5px 0 0 0; font-size:12px;">Accessibility: <span style="font-weight:500;">${feature.properties.accessibility}</span></p>
+              </div>
+            `)
+          )
+          .addTo(map.current!);
+      });
+
+      // Add click handlers
+      map.current.on('click', 'demo-accessible-routes', e => {
+        if (e.features?.[0]?.properties?.id && onRouteSelect) {
+          onRouteSelect(e.features[0].properties.id);
+        }
+      });
+      map.current.on('click', 'demo-partial-routes', e => {
+        if (e.features?.[0]?.properties?.id && onRouteSelect) {
+          onRouteSelect(e.features[0].properties.id);
+        }
+      });
+
+      console.log('✅ Demo routes added successfully');
+    } catch (error) {
+      console.error('❌ Error adding demo routes:', error);
+    }
+  }, [routes, selectedRoute, onRouteSelect, isMapLoaded]);
+
 
   // --- Layer visibility based on filters ---
   useEffect(() => {
