@@ -44,8 +44,8 @@ const Header: React.FC<HeaderProps> = ({
                 <Accessibility className="h-6 w-6" />
               </div>
               <div>
-                <h1 className="text-xl font-bold">Campus Navigator</h1>
-                <p className="text-xs text-primary-foreground/80">Wheelchair Accessible Routes</p>
+                <h1 className="text-xl font-bold">Access VT</h1>
+                <p className="text-xs text-primary-foreground/80">Accessible Routes</p>
               </div>
             </div>
           </div>

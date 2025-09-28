@@ -54,7 +54,7 @@ const Index = () => {
 
   const handleInfoClick = useCallback(() => {
     toast({
-      title: "Campus Navigator",
+      title: "Access VT",
       description: "Helping you find wheelchair accessible routes across Virginia Tech campus.",
     });
   }, [toast]);
@@ -207,12 +207,12 @@ const Index = () => {
               <div className="p-2 bg-primary/10 rounded-lg">
                 <div className="h-5 w-5 bg-gradient-primary rounded" />
               </div>
-              About Campus Navigator
+              About Access VT
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 text-sm">
             <p>
-              Campus Navigator helps students and visitors find wheelchair accessible routes 
+              Access VT helps students and visitors find wheelchair accessible routes 
               across Virginia Tech campus.
             </p>
             <div className="space-y-2">
