@@ -1,5 +1,7 @@
 # Acess Path
 
+devpost link: https://devpost.com/software/1070127/joins/B7FYAGhfxRnuiNes2LZu7Q
+
 **Project Goal:**  
 Provide a simple, accessible navigation tool for wheelchair users on campus, with real-time AR guidance and notifications for blocked paths.
 
@@ -54,4 +56,5 @@ npm i
 
 # Step 4: Start the development server with auto-reloading and an instant preview.
 npm run dev
+npx ngrok http LAST_4_DIGITS_OF_SERVER
 ```
