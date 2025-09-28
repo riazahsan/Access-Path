@@ -8,9 +8,10 @@ import ThemeToggle from '@/components/ThemeToggle';
 import { useMap } from '@/contexts/MapContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { AccessibilityFilter, Waypoint, Building } from '@/types';
+import { AccessibilityFilter, Waypoint, Building, RouteResponse } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { Plus } from 'lucide-react';
+import QRCodeGenerator from '@/components/QRCodeGenerator';
 
 const Index = () => {
   const [selectedRoute, setSelectedRoute] = useState<string>('');
@@ -31,6 +32,7 @@ const Index = () => {
     startName: string;
     endName: string;
   } | null>(null);
+  const [currentRouteResponse, setCurrentRouteResponse] = useState<RouteResponse | null>(null);
   const [constructionBlockades, setConstructionBlockades] = useState<ConstructionBlockade[]>([]);
   const { map, isMapLoaded } = useMap();
 
@@ -85,6 +87,40 @@ const Index = () => {
       };
 
       setWaypoints([startWaypoint, endWaypoint]);
+
+      // Calculate realistic distance and duration based on coordinates
+      const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+        const R = 6371000; // Earth's radius in meters
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLng = (lng2 - lng1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                 Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                 Math.sin(dLng/2) * Math.sin(dLng/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+      };
+
+      const distance = calculateDistance(
+        startBuilding.coordinates[1], startBuilding.coordinates[0],
+        endBuilding.coordinates[1], endBuilding.coordinates[0]
+      );
+      
+      // Estimate duration: 4 minutes per 1000m for wheelchair users
+      const duration = Math.max(60, (distance / 1000) * 4 * 60); // At least 1 minute
+
+      // Create a mock route response for QR code generation
+      const mockRouteResponse: RouteResponse = {
+        success: true,
+        route: {
+          coordinates: [startBuilding.coordinates, endBuilding.coordinates],
+          distance: distance,
+          duration: duration, // Realistic duration in seconds
+          accessibility: 'accessible',
+          instructions: ['Start at ' + startBuilding.name, 'Follow accessible path', 'Arrive at ' + endBuilding.name]
+        }
+      };
+      
+      setCurrentRouteResponse(mockRouteResponse);
 
       // Set the planned route state which will be passed to MapView
       const routeData = {
@@ -155,6 +191,16 @@ const Index = () => {
         onClose={handleRoutePlanningClose}
         onRoutePlan={handleRoutePlan}
       />
+
+      {/* QR Code Generator */}
+      {plannedRoute && currentRouteResponse && (
+        <div className="absolute top-20 right-4 z-50">
+          <QRCodeGenerator 
+            routeResponse={currentRouteResponse}
+            plannedRoute={plannedRoute}
+          />
+        </div>
+      )}
 
       {/* Info Dialog */}
       <Dialog>

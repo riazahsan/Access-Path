@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile AR Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #000;
+            color: #fff;
+            overflow: hidden;
+            height: 100vh;
+            position: fixed;
+            width: 100%;
+            touch-action: none;
+        }
+        
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        
+        .status {
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+            border: 1px solid #333;
+        }
+        
+        .button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px;
+            width: 100%;
+        }
+        
+        .button:hover {
+            background: #2563eb;
+        }
+        
+        .button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        
+        .success {
+            color: #22c55e;
+        }
+        
+        .error {
+            color: #ef4444;
+        }
+        
+        .warning {
+            color: #f59e0b;
+        }
+        
+        #video {
+            width: 100%;
+            max-width: 300px;
+            height: 200px;
+            background: #333;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+        
+        .log {
+            background: rgba(0, 0, 0, 0.9);
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            text-align: left;
+            max-height: 200px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Mobile AR Test</h1>
+        
+        <div class="status">
+            <h3>Device Status</h3>
+            <div id="orientation-status">❌ Orientation: Not Available</div>
+            <div id="location-status">❌ Location: Not Available</div>
+            <div id="camera-status">❌ Camera: Not Available</div>
+        </div>
+        
+        <video id="video" autoplay muted playsinline style="display: none;"></video>
+        
+        <button class="button" onclick="testOrientation()">Test Orientation</button>
+        <button class="button" onclick="testLocation()">Test Location</button>
+        <button class="button" onclick="testCamera()">Test Camera</button>
+        <button class="button" onclick="testAll()">Test All Permissions</button>
+        
+        <div class="log" id="log">
+            <div>📱 Mobile AR Test Page Loaded</div>
+            <div>🔍 Testing device capabilities...</div>
+        </div>
+        
+        <button class="button" onclick="window.location.href='/mobile/?route=' + encodeURIComponent(JSON.stringify(getTestRoute()))">
+            Open AR Navigation
+        </button>
+    </div>
+
+    <script>
+        let userHeading = null;
+        let userLocation = null;
+        let cameraStream = null;
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : '';
+            logDiv.innerHTML += `<div class="${color}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        function getTestRoute() {
+            return {
+                waypoints: [
+                    { lat: 37.2292, lng: -80.4167, name: "Test Start" },
+                    { lat: 37.2300, lng: -80.4150, name: "Test End" }
+                ],
+                distance: 150,
+                duration: 240,
+                instructions: ["Start at Test Start", "Walk north", "Arrive at Test End"],
+                currentWaypoint: 0
+            };
+        }
+        
+        function testOrientation() {
+            log('🧭 Testing device orientation...');
+            
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                log('📱 iOS detected - requesting orientation permission...', 'warning');
+                DeviceOrientationEvent.requestPermission()
+                    .then(response => {
+                        if (response === 'granted') {
+                            log('✅ Orientation permission granted', 'success');
+                            startOrientationTracking();
+                        } else {
+                            log('❌ Orientation permission denied', 'error');
+                            document.getElementById('orientation-status').innerHTML = '❌ Orientation: Permission Denied';
+                        }
+                    })
+                    .catch(error => {
+                        log('❌ Orientation permission error: ' + error, 'error');
+                    });
+            } else {
+                log('🖥️ Desktop/Android - starting orientation tracking...');
+                startOrientationTracking();
+            }
+        }
+        
+        function startOrientationTracking() {
+            window.addEventListener('deviceorientation', (event) => {
+                if (event.alpha !== null) {
+                    userHeading = event.alpha;
+                    log(`🧭 Heading: ${userHeading.toFixed(1)}°`, 'success');
+                    document.getElementById('orientation-status').innerHTML = `✅ Orientation: ${userHeading.toFixed(1)}°`;
+                }
+            });
+            
+            // Also test if we can create a mock event
+            setTimeout(() => {
+                const mockEvent = new Event('deviceorientation');
+                Object.defineProperty(mockEvent, 'alpha', { value: 45 });
+                Object.defineProperty(mockEvent, 'beta', { value: 0 });
+                Object.defineProperty(mockEvent, 'gamma', { value: 0 });
+                window.dispatchEvent(mockEvent);
+                log('🔧 Mock orientation event dispatched', 'warning');
+            }, 1000);
+        }
+        
+        function testLocation() {
+            log('📍 Testing geolocation...');
+            
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        userLocation = {
+                            lat: position.coords.latitude,
+                            lng: position.coords.longitude
+                        };
+                        log(`📍 Location: ${userLocation.lat.toFixed(6)}, ${userLocation.lng.toFixed(6)}`, 'success');
+                        document.getElementById('location-status').innerHTML = `✅ Location: ${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)}`;
+                    },
+                    (error) => {
+                        log('❌ Location error: ' + error.message, 'error');
+                        document.getElementById('location-status').innerHTML = '❌ Location: ' + error.message;
+                    },
+                    { enableHighAccuracy: true, timeout: 10000 }
+                );
+            } else {
+                log('❌ Geolocation not supported', 'error');
+                document.getElementById('location-status').innerHTML = '❌ Location: Not Supported';
+            }
+        }
+        
+        function testCamera() {
+            log('📹 Testing camera access...');
+            
+            navigator.mediaDevices.getUserMedia({
+                video: {
+                    facingMode: 'environment',
+                    width: { ideal: 640 },
+                    height: { ideal: 480 }
+                }
+            })
+            .then((stream) => {
+                cameraStream = stream;
+                const video = document.getElementById('video');
+                video.srcObject = stream;
+                video.style.display = 'block';
+                log('✅ Camera access granted', 'success');
+                document.getElementById('camera-status').innerHTML = '✅ Camera: Available';
+            })
+            .catch((error) => {
+                log('❌ Camera error: ' + error.message, 'error');
+                document.getElementById('camera-status').innerHTML = '❌ Camera: ' + error.message;
+            });
+        }
+        
+        function testAll() {
+            log('🚀 Testing all permissions...');
+            testOrientation();
+            testLocation();
+            testCamera();
+        }
+        
+        // Auto-test on load
+        window.addEventListener('load', () => {
+            log('📱 Page loaded - starting auto-tests...');
+            setTimeout(testAll, 1000);
+        });
+        
+        // Prevent scrolling
+        document.addEventListener('touchmove', function(e) {
+            e.preventDefault();
+        }, { passive: false });
+        
+        document.addEventListener('scroll', function(e) {
+            e.preventDefault();
+            window.scrollTo(0, 0);
+        }, { passive: false });
+    </script>
+</body>
+</html>

@@ -22,8 +22,8 @@ interface MapViewProps {
   onConstructionBlockadesChange: (blockades: ConstructionBlockade[]) => void;
 }
 
-const MapView: React.FC<MapViewProps> = ({
-  selectedRoute,
+const MapView: React.FC<MapViewProps> = ({ 
+  selectedRoute, 
   filters,
   onRouteSelect,
   plannedRoute,
@@ -352,7 +352,7 @@ const MapView: React.FC<MapViewProps> = ({
             return "mapbox://styles/samirkhattak/cmg2ldrpo000o01s14dc45qyz?fresh=true";
         }
       };
-
+      
       map.current = new mapboxgl.Map({
         container: mapContainer.current,
         style: getMapStyle(),
@@ -375,9 +375,9 @@ const MapView: React.FC<MapViewProps> = ({
 
       map.current.on('load', () => {
         if (!map.current) return;
-
+        
         setIsMapLoaded(true);
-
+        
         // Max bounds
         const bounds: mapboxgl.LngLatBoundsLike = [
           [-80.437, 37.210],
@@ -543,7 +543,7 @@ const MapView: React.FC<MapViewProps> = ({
 
       // Wait a bit for style to fully load
       setTimeout(() => {
-        if (!map.current) return;
+      if (!map.current) return;
 
         try {
           // Restore origin circle (user location)
@@ -590,7 +590,7 @@ const MapView: React.FC<MapViewProps> = ({
           }
 
           // Restore map click handler
-          map.current.off('click'); // Remove any existing click handlers
+          map.current.off('click', null); // Remove any existing click handlers
           map.current.on("click", (event) => {
             const coords: [number, number] = [event.lngLat.lng, event.lngLat.lat];
 
@@ -630,9 +630,9 @@ const MapView: React.FC<MapViewProps> = ({
           console.log('🖱️ Map click handler restored after style change');
 
 
-        } catch (error) {
+      } catch (error) {
           console.warn('Could not restore map elements:', error);
-        }
+      }
       }, 500); // Increased timeout to ensure style is fully loaded
     };
 
@@ -642,7 +642,7 @@ const MapView: React.FC<MapViewProps> = ({
   return (
     <div className="relative w-full h-screen">
       <div ref={mapContainer} className="absolute inset-0" />
-
+      
       {/* Sidebar for directions */}
       <div
         id="instructions"
@@ -695,7 +695,7 @@ const MapView: React.FC<MapViewProps> = ({
               <span>Not optimized</span>
             </div>
           </div>
-        </div>
+      </div>
       </div>
 
       {/* Loading indicator */}
