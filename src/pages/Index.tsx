@@ -165,6 +165,8 @@ const Index = () => {
         isMapLoaded={isMapLoaded}
         constructionBlockades={constructionBlockades}
         onConstructionBlockadesChange={setConstructionBlockades}
+        plannedRoute={plannedRoute}
+        currentRouteResponse={currentRouteResponse}
       />
       
       {/* Main content area - adjusted for header */}
@@ -193,15 +195,6 @@ const Index = () => {
         onRoutePlan={handleRoutePlan}
       />
 
-      {/* QR Code Generator */}
-      {plannedRoute && currentRouteResponse && (
-        <div className="absolute top-20 right-4 z-50">
-          <QRCodeGenerator 
-            routeResponse={currentRouteResponse}
-            plannedRoute={plannedRoute}
-          />
-        </div>
-      )}
 
       {/* Info Dialog */}
       <Dialog>

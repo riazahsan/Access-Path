@@ -4,6 +4,8 @@ import { Badge } from '@/components/ui/badge';
 import { Navigation, Accessibility, Map, Info, Plus } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import ConstructionDropdown, { type ConstructionBlockade } from '@/components/ConstructionDropdown';
+import QRCodeGenerator from '@/components/QRCodeGenerator';
+import { RouteResponse } from '@/types';
 
 interface HeaderProps {
   onInfoClick?: () => void;
@@ -12,6 +14,13 @@ interface HeaderProps {
   isMapLoaded?: boolean;
   constructionBlockades?: ConstructionBlockade[];
   onConstructionBlockadesChange?: (blockades: ConstructionBlockade[]) => void;
+  plannedRoute?: {
+    start: [number, number];
+    end: [number, number];
+    startName: string;
+    endName: string;
+  } | null;
+  currentRouteResponse?: RouteResponse | null;
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -20,7 +29,9 @@ const Header: React.FC<HeaderProps> = ({
   map,
   isMapLoaded,
   constructionBlockades,
-  onConstructionBlockadesChange
+  onConstructionBlockadesChange,
+  plannedRoute,
+  currentRouteResponse
 }) => {
   return (
     <header className="absolute top-0 left-0 right-0 z-20 bg-gradient-primary text-primary-foreground shadow-accessible">
@@ -69,6 +80,15 @@ const Header: React.FC<HeaderProps> = ({
                     isMapLoaded={isMapLoaded || false}
                     onBlockadesChange={onConstructionBlockadesChange}
                     className="text-primary-foreground hover:bg-white/20 bg-transparent border-white/30"
+                  />
+                </div>
+              )}
+
+              {plannedRoute && currentRouteResponse && (
+                <div className="[&_button]:text-primary-foreground [&_button]:hover:bg-white/20 [&_button]:bg-transparent [&_button]:border-white/30">
+                  <QRCodeGenerator
+                    routeResponse={currentRouteResponse}
+                    plannedRoute={plannedRoute}
                   />
                 </div>
               )}
