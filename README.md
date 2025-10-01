@@ -1,4 +1,4 @@
-# Access Path
+# AccessVT
 
 **Project Goal:**  
 Provide a simple, accessible navigation tool for wheelchair users on campus, with real-time AR guidance and notifications for blocked paths.
